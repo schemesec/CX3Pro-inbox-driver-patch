@@ -293,9 +293,9 @@ write_module_config() {
 	local begin="# cx3pro-inbox-rocev2 begin"
 	local end="# cx3pro-inbox-rocev2 end"
 
-	cat >"$modprobe_file" <<EOF
+cat >"$modprobe_file" <<EOF
 # CX3 Pro inbox mlx4 RoCEv2/SR-IOV test modules
-options mlx4_core num_vfs=${NUM_VFS},0,0 probe_vf=${NUM_VFS},0,0 port_type_array=${PORT_TYPE_ARRAY} log_num_mgm_entry_size=${LOG_NUM_MGM_ENTRY_SIZE}
+options mlx4_core num_vfs=${NUM_VFS},0,0 probe_vf=${NUM_VFS},0,0 port_type_array=${PORT_TYPE_ARRAY} log_num_mgm_entry_size=${LOG_NUM_MGM_ENTRY_SIZE} enable_mfunc_roce_v2=1
 EOF
 	log "module options written to ${modprobe_file}"
 

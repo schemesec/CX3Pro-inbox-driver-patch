@@ -20,6 +20,10 @@ only `mlx4_core.ko`, `mlx4_en.ko`, and `mlx4_ib.ko` for the current kernel, and
 installs them below `/lib/modules/<kernel>/updates/cx3pro-inbox-rocev2`.
 It does not install a replacement RDMA core or NVMe/RDMA stack.
 
+The patch keeps the firmware RoCE v1/v2 capability visible in multifunction
+mode by default using the `mlx4_core.enable_mfunc_roce_v2` module parameter.
+This is needed for the inbox RDMA core to register RoCEv2 GIDs for PFs and VFs.
+
 If stale OFED override modules/config are present from previous testing, the
 script backs them up and removes them from the active module path before
 running `depmod`. The dependency check must resolve `mlx4_core`, `mlx4_en`, and

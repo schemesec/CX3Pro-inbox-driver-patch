@@ -1,6 +1,6 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: scheme <scheme@scheme.home.schemesec.com>
-Date: Tue, 19 May 2026 19:45:00 -0400
+Date: Wed, 20 May 2026 00:00:00 -0400
 Subject: [PATCH] mlx4: preserve RoCEv2 GID type for SR-IOV VFs
 
 The mlx4 PF command wrapper allowed SR-IOV VFs to update their RoCE GID
@@ -18,6 +18,10 @@ alongside the existing raw GID cache, and return that type to mlx4_ib so VF
 traffic using RoCE v2 GIDs is encoded as RoCE v2.  Preserve duplicate-GID
 rejection for duplicate GID/type pairs while allowing the normal RoCEv1 and
 RoCEv2 entries that share the same raw GID bytes.
+
+For CX3 Pro SR-IOV testing, keep the firmware RoCE v1/v2 capability visible
+in multifunction mode by default so the inbox RDMA core creates both v1 and
+v2 GIDs.  This can be disabled with mlx4_core.enable_mfunc_roce_v2=0.
 
 Signed-off-by: scheme <scheme@scheme.home.schemesec.com>
 ---
@@ -57,6 +61,32 @@ index 1cb890d3d..c01265705 100644
  			err = fill_gid_by_hw_index(ibdev, qp->port,
  						   ah->av.ib.gid_index, &sgid,
  						   &gid_type);
+diff --git a/drivers/net/ethernet/mellanox/mlx4/fw.c b/drivers/net/ethernet/mellanox/mlx4/fw.c
+index 0005d9e2c..cb614f2e6 100644
+--- a/drivers/net/ethernet/mellanox/mlx4/fw.c
++++ b/drivers/net/ethernet/mellanox/mlx4/fw.c
+@@ -42,6 +42,11 @@
+ #include "fw.h"
+ #include "icm.h"
+ 
++static bool enable_mfunc_roce_v2 = true;
++module_param_named(enable_mfunc_roce_v2, enable_mfunc_roce_v2, bool, 0444);
++MODULE_PARM_DESC(enable_mfunc_roce_v2,
++		 "Expose RoCE v1/v2 capability in multifunction mode (default: true)");
++
+ enum {
+ 	MLX4_COMMAND_INTERFACE_MIN_REV		= 2,
+ 	MLX4_COMMAND_INTERFACE_MAX_REV		= 3,
+@@ -1399,7 +1404,8 @@ static void disable_unsupported_roce_caps(void *buf)
+ 	flags &= ~(1UL << 24);
+ 	MLX4_PUT(buf, flags, QUERY_DEV_CAP_EXT_2_FLAGS_OFFSET);
+ 	MLX4_GET(flags, buf, QUERY_DEV_CAP_BMME_FLAGS_OFFSET);
+-	flags &= ~(MLX4_FLAG_ROCE_V1_V2);
++	if (!enable_mfunc_roce_v2)
++		flags &= ~(MLX4_FLAG_ROCE_V1_V2);
+ 	MLX4_PUT(buf, flags, QUERY_DEV_CAP_BMME_FLAGS_OFFSET);
+ }
+ 
 diff --git a/drivers/net/ethernet/mellanox/mlx4/mlx4.h b/drivers/net/ethernet/mellanox/mlx4/mlx4.h
 index b213094ea..1340875db 100644
 --- a/drivers/net/ethernet/mellanox/mlx4/mlx4.h
