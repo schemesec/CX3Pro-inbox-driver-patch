@@ -40,6 +40,20 @@ Validated:
   Result: 65536-byte RDMA write, RoCEv2 IPv4-mapped GIDs
   `192.168.20.50 -> 192.168.20.56`, RDMA MTU 2048, 49.25 Gbit/sec average.
   A post-test pvs3 kernel warning scan returned no entries.
+- Stock inbox `nvme-rdma` initiator on `pvs3` can discover and connect to the
+  existing pvs1 NVMe/RDMA target over RoCEv2:
+
+  ```sh
+  nvme discover -t rdma -a 192.168.20.51 -s 4420
+  nvme connect -t rdma -n schemesec:nvme:rg-pve0 -a 192.168.20.51 -s 4420
+  nvme list
+  nvme disconnect -n schemesec:nvme:rg-pve0
+  ```
+
+  Discovery returned `schemesec:nvme:rg-pve0`; connect created
+  `/dev/nvme1n1` as a 3.76 TB Linux NVMe target using 12 I/O queues. A
+  read-only identify/size check completed, the controller disconnected cleanly,
+  and a pvs3 kernel warning scan returned no entries.
 
 Not yet repeated after the latest clean inbox-patch boot:
 
