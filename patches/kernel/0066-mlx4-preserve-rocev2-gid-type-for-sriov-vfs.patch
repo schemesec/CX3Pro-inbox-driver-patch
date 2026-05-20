@@ -61,6 +61,20 @@ index 1cb890d3d..c01265705 100644
  			err = fill_gid_by_hw_index(ibdev, qp->port,
  						   ah->av.ib.gid_index, &sgid,
  						   &gid_type);
+diff --git a/drivers/infiniband/hw/mlx4/main.c b/drivers/infiniband/hw/mlx4/main.c
+index 63360c5a7..85eb1870c 100644
+--- a/drivers/infiniband/hw/mlx4/main.c
++++ b/drivers/infiniband/hw/mlx4/main.c
+@@ -2829,7 +2829,8 @@ static int mlx4_ib_probe(struct auxiliary_device *adev,
+ 			goto err_notif;
+ 		}
+ 	}
+-	if (dev->caps.flags2 & MLX4_DEV_CAP_FLAG2_ROCE_V1_V2) {
++	if (!mlx4_is_slave(dev) &&
++	    dev->caps.flags2 & MLX4_DEV_CAP_FLAG2_ROCE_V1_V2) {
+ 		err = mlx4_config_roce_v2_port(dev, ROCE_V2_UDP_DPORT);
+ 		if (err)
+ 			goto err_notif;
 diff --git a/drivers/net/ethernet/mellanox/mlx4/fw.c b/drivers/net/ethernet/mellanox/mlx4/fw.c
 index 0005d9e2c..cb614f2e6 100644
 --- a/drivers/net/ethernet/mellanox/mlx4/fw.c
