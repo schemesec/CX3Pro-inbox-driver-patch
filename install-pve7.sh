@@ -181,7 +181,10 @@ build_modules() {
 	run make -C "$KERNEL_TREE" "M=drivers/infiniband/hw/mlx4" clean
 	run cp "/lib/modules/${KVER}/build/Module.symvers" "${KERNEL_TREE}/Module.symvers"
 	run make -C "$KERNEL_TREE" "M=drivers/net/ethernet/mellanox/mlx4" modules "LOCALVERSION=${localversion}" "-j${JOBS}"
-	run make -C "$KERNEL_TREE" "M=drivers/infiniband/hw/mlx4" modules "LOCALVERSION=${localversion}" "-j${JOBS}"
+	run make -C "$KERNEL_TREE" "M=drivers/infiniband/hw/mlx4" modules \
+		"LOCALVERSION=${localversion}" \
+		"KBUILD_EXTRA_SYMBOLS=${KERNEL_TREE}/drivers/net/ethernet/mellanox/mlx4/Module.symvers" \
+		"-j${JOBS}"
 }
 
 verify_module() {
@@ -200,6 +203,31 @@ verify_module() {
 		exit 1
 		;;
 	esac
+}
+
+verify_mlx4_ib_symbol_versions() {
+	local core_symvers="${KERNEL_TREE}/drivers/net/ethernet/mellanox/mlx4/Module.symvers"
+	local ib_module="${KERNEL_TREE}/drivers/infiniband/hw/mlx4/mlx4_ib.ko"
+	local symbols=(
+		mlx4_register_vlan
+		mlx4_get_roce_gid_from_slave
+		mlx4_get_base_gid_ix
+		mlx4_get_slave_from_roce_gid
+	)
+	local symbol expected actual
+
+	need_file "$core_symvers"
+	need_file "$ib_module"
+
+	for symbol in "${symbols[@]}"; do
+		expected="$(awk -v sym="$symbol" '$2 == sym { print $1; exit }' "$core_symvers")"
+		actual="$(modprobe --dump-modversions "$ib_module" | awk -v sym="$symbol" '$2 == sym { print $1; exit }')"
+		if [ -z "$expected" ] || [ -z "$actual" ] || [ "$expected" != "$actual" ]; then
+			log "error: mlx4_ib symbol CRC mismatch for ${symbol}: expected=${expected:-missing} actual=${actual:-missing}"
+			exit 1
+		fi
+	done
+	log "mlx4_ib symbol CRCs match patched mlx4_core exports"
 }
 
 install_module() {
@@ -331,6 +359,7 @@ MODULES=(
 for module in "${MODULES[@]}"; do
 	verify_module "$module"
 done
+verify_mlx4_ib_symbol_versions
 
 if [ "$BUILD_ONLY" -eq 1 ]; then
 	log "build-only complete"
