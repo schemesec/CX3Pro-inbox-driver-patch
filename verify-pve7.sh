@@ -34,7 +34,8 @@ EOF_MAC
 }
 
 vf_bdf() {
-	local idx="$1" vf_link="/sys/class/net/${PF}/device/virtfn${idx}"
+	local idx="$1" vf_link
+	vf_link="/sys/class/net/${PF}/device/virtfn${idx}"
 	[ -e "$vf_link" ] || return 1
 	basename "$(readlink -f "$vf_link")"
 }
@@ -46,7 +47,8 @@ vf_netdev() {
 }
 
 pci_driver() {
-	local bdf="$1" driver_link="/sys/bus/pci/devices/${bdf}/driver"
+	local bdf="$1" driver_link
+	driver_link="/sys/bus/pci/devices/${bdf}/driver"
 	[ -e "$driver_link" ] || return 1
 	basename "$(readlink -f "$driver_link")"
 }

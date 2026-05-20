@@ -193,13 +193,15 @@ vf_mac_from_list() {
 }
 
 vf_bdf() {
-	local idx="$1" vf_link="/sys/class/net/${PF}/device/virtfn${idx}"
+	local idx="$1" vf_link
+	vf_link="/sys/class/net/${PF}/device/virtfn${idx}"
 	[ -e "$vf_link" ] || return 1
 	basename "$(readlink -f "$vf_link")"
 }
 
 reprobe_vf() {
-	local bdf="$1" dev="/sys/bus/pci/devices/${bdf}" driver_path driver
+	local bdf="$1" dev driver_path driver
+	dev="/sys/bus/pci/devices/${bdf}"
 	[ -e "$dev" ] && [ -e "${dev}/driver" ] || return 0
 	driver_path="$(readlink -f "${dev}/driver")"
 	driver="$(basename "$driver_path")"
