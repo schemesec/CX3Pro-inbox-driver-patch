@@ -9,6 +9,17 @@ cache, and uses that cached type when `mlx4_ib` builds VF RoCE packets.
 
 It is not an OFED replacement and does not patch NVMe/RDMA target code.
 
+For the install-script workflow, use:
+
+```sh
+./install-pve7.sh
+```
+
+The script fetches a Proxmox `pve-kernel` checkout, applies the patch, builds
+only `mlx4_core.ko`, `mlx4_en.ko`, and `mlx4_ib.ko` for the current kernel, and
+installs them below `/lib/modules/<kernel>/updates/cx3pro-inbox-rocev2`.
+It does not install a replacement RDMA core or NVMe/RDMA stack.
+
 ## Current validation
 
 On `pvs3`, the patch was pulled from this repository, applied to a Proxmox
