@@ -8,7 +8,7 @@ homelab CX3 Pro setup. It is not a production driver source.
 - Host: `pvs3`
 - Kernel: `7.0.2-2-pve`
 - Module install path: `/lib/modules/7.0.2-2-pve/updates/cx3pro-inbox-rocev2`
-- Patch repo commit tested: `8dea678`
+- Patch repo commit tested: `9ea890d`
 
 Validated:
 
@@ -26,6 +26,11 @@ Validated:
 - `verify-pve7.sh` passes after reboot, including the kernel warning scan for
   `BUG`, `Oops`, `WARNING`, `Call Trace`, `Unknown symbol`, `disagrees`,
   `__warn`, and `vhcr command:0x3a`.
+
+Not yet repeated after the latest clean inbox-patch boot:
+
+- Cross-host PF `ib_write_bw` performance.
+- Cross-host VF `ib_write_bw` performance from a VM-assigned VF.
 
 Previously observed and fixed:
 

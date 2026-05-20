@@ -23,6 +23,10 @@ modules for the currently running kernel, installs them under
 `/lib/modules/<kernel>/updates/cx3pro-inbox-rocev2`, updates module
 dependencies/initramfs, and leaves activation to the reboot.
 
+`mlx4_core` and `mlx4_ib` contain the RoCEv2/SR-IOV logic changes. `mlx4_en`
+is built and installed from the same patched inbox source tree so the active
+mlx4 Ethernet, core, and IB modules stay from one consistent build.
+
 If an older `mlx-research`/OFED override tree is present, the installer moves
 that override and its legacy module options into `module-backups/` first. This
 is intentional: the inbox patch must resolve against the stock inbox RDMA core,
@@ -52,3 +56,7 @@ PF=enp23s0 NUM_VFS=8 VF_VLAN=20 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.
 Unlike the OFED port, these scripts do not set `roce_mode`, `ud_gid_type`, or
 load `mlx_compat`; RoCEv2 exposure comes from the patched inbox `mlx4` modules
 and `mlx4_core.enable_mfunc_roce_v2=1`.
+
+The verifier intentionally fails on kernel warnings and symbol/path mismatches.
+Those checks are there to catch real driver regressions; they are not masking
+or filtering driver failures to make the patch look clean.
