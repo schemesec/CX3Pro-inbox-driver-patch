@@ -1,0 +1,298 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: scheme <scheme@scheme.home.schemesec.com>
+Date: Tue, 19 May 2026 19:45:00 -0400
+Subject: [PATCH] mlx4: preserve RoCEv2 GID type for SR-IOV VFs
+
+The mlx4 PF command wrapper allowed SR-IOV VFs to update their RoCE GID
+entries through MLX4_SET_PORT_GID_TABLE, but rejected
+MLX4_SET_PORT_ROCE_ADDR.  The older GID table command carries only the raw
+GID bytes, while the RoCE address command also carries the RoCE version.
+
+As a result, a VF could not expose RoCE v2 GIDs through the PF-managed GID
+cache.  mlx4_ib later reads that cache when building packets for VFs, but it
+only recovered the GID bytes and therefore could not identify a cached VF GID
+as RoCE v2/UDP-encapsulated.
+
+Allow VF MLX4_SET_PORT_ROCE_ADDR updates, store the per-entry RoCE GID type
+alongside the existing raw GID cache, and return that type to mlx4_ib so VF
+traffic using RoCE v2 GIDs is encoded as RoCE v2.  Preserve the existing
+duplicate-GID rejection behavior and keep MLX4_SET_PORT_GID_TABLE entries as
+RoCE v1 for older VFs.
+
+Signed-off-by: scheme <scheme@scheme.home.schemesec.com>
+---
+diff --git a/drivers/infiniband/hw/mlx4/qp.c b/drivers/infiniband/hw/mlx4/qp.c
+index 1cb890d3d..c01265705 100644
+--- a/drivers/infiniband/hw/mlx4/qp.c
++++ b/drivers/infiniband/hw/mlx4/qp.c
+@@ -3048,17 +3048,29 @@ static int build_mlx_header(struct mlx4_ib_qp *qp, const struct ib_ud_wr *wr,
+ 	is_eth = rdma_port_get_link_layer(qp->ibqp.device, qp->port) == IB_LINK_LAYER_ETHERNET;
+ 	is_grh = mlx4_ib_ah_grh_present(ah);
+ 	if (is_eth) {
+-		enum ib_gid_type gid_type;
+ 		if (mlx4_is_mfunc(to_mdev(ib_dev)->dev)) {
++			enum mlx4_roce_gid_type gid_type;
++
+ 			/* When multi-function is enabled, the ib_core gid
+ 			 * indexes don't necessarily match the hw ones, so
+ 			 * we must use our own cache */
+ 			err = mlx4_get_roce_gid_from_slave(to_mdev(ib_dev)->dev,
+ 							   be32_to_cpu(ah->av.ib.port_pd) >> 24,
+-							   ah->av.ib.gid_index, &sgid.raw[0]);
++							   ah->av.ib.gid_index, &sgid.raw[0],
++							   &gid_type);
+ 			if (err)
+ 				return err;
++			is_udp = gid_type == MLX4_ROCE_GID_TYPE_V2;
++			if (is_udp) {
++				if (ipv6_addr_v4mapped((struct in6_addr *)&sgid))
++					ip_version = 4;
++				else
++					ip_version = 6;
++				is_grh = false;
++			}
+ 		} else  {
++			enum ib_gid_type gid_type;
++
+ 			err = fill_gid_by_hw_index(ibdev, qp->port,
+ 						   ah->av.ib.gid_index, &sgid,
+ 						   &gid_type);
+diff --git a/drivers/net/ethernet/mellanox/mlx4/mlx4.h b/drivers/net/ethernet/mellanox/mlx4/mlx4.h
+index b213094ea..1340875db 100644
+--- a/drivers/net/ethernet/mellanox/mlx4/mlx4.h
++++ b/drivers/net/ethernet/mellanox/mlx4/mlx4.h
+@@ -761,6 +761,7 @@ struct mlx4_roce_gid_entry {
+ 
+ struct mlx4_roce_gid_table {
+ 	struct mlx4_roce_gid_entry	roce_gids[MLX4_ROCE_MAX_GIDS];
++	enum mlx4_roce_gid_type	gid_type[MLX4_ROCE_MAX_GIDS];
+ 	struct mutex			mutex;
+ };
+ 
+diff --git a/drivers/net/ethernet/mellanox/mlx4/port.c b/drivers/net/ethernet/mellanox/mlx4/port.c
+index e3d0b13c1..14c6ef12f 100644
+--- a/drivers/net/ethernet/mellanox/mlx4/port.c
++++ b/drivers/net/ethernet/mellanox/mlx4/port.c
+@@ -34,6 +34,7 @@
+ #include <linux/if_ether.h>
+ #include <linux/if_vlan.h>
+ #include <linux/export.h>
++#include <net/ipv6.h>
+ 
+ #include <linux/mlx4/cmd.h>
+ 
+@@ -93,8 +94,10 @@ void mlx4_init_roce_gid_table(struct mlx4_dev *dev,
+ 	int i;
+ 
+ 	mutex_init(&table->mutex);
+-	for (i = 0; i < MLX4_ROCE_MAX_GIDS; i++)
++	for (i = 0; i < MLX4_ROCE_MAX_GIDS; i++) {
+ 		memset(table->roce_gids[i].raw, 0, MLX4_ROCE_GID_ENTRY_SIZE);
++		table->gid_type[i] = MLX4_ROCE_GID_TYPE_INVALID;
++	}
+ }
+ 
+ static int validate_index(struct mlx4_dev *dev,
+@@ -1069,6 +1072,41 @@ int mlx4_get_port_ib_caps(struct mlx4_dev *dev, u8 port, __be32 *caps)
+ }
+ static struct mlx4_roce_gid_entry zgid_entry;
+ 
++struct mlx4_roce_addr_mbox_entry {
++	u8		gid[MLX4_ROCE_GID_ENTRY_SIZE];
++	__be32		rsrvd1[2];
++	__be16		rsrvd2;
++	u8		type;
++	u8		version;
++	__be32		rsrvd3;
++};
++
++static void mlx4_fill_roce_addr_mbox(struct mlx4_roce_gid_table *table,
++				     void *buf)
++{
++	struct mlx4_roce_addr_mbox_entry *entry = buf;
++	int i;
++
++	for (i = 0; i < MLX4_ROCE_MAX_GIDS; i++, entry++) {
++		memcpy(entry->gid, table->roce_gids[i].raw,
++		       MLX4_ROCE_GID_ENTRY_SIZE);
++		if (table->gid_type[i] == MLX4_ROCE_GID_TYPE_V2) {
++			entry->version = 2;
++			if (!ipv6_addr_v4mapped((struct in6_addr *)entry->gid))
++				entry->type = 1;
++		}
++	}
++}
++
++static bool mlx4_roce_addr_entry_valid(struct mlx4_roce_addr_mbox_entry *entry)
++{
++	if (!memcmp(entry->gid, zgid_entry.raw, MLX4_ROCE_GID_ENTRY_SIZE))
++		return true;
++
++	return entry->version == MLX4_ROCE_GID_TYPE_V1 ||
++	       entry->version == MLX4_ROCE_GID_TYPE_V2;
++}
++
+ int mlx4_get_slave_num_gids(struct mlx4_dev *dev, int slave, int port)
+ {
+ 	int vfs;
+@@ -1161,9 +1199,12 @@ static int mlx4_reset_roce_port_gids(struct mlx4_dev *dev, int slave,
+ 
+ 	mutex_lock(&(priv->port[port].gid_table.mutex));
+ 	/* Zero-out gids belonging to that slave in the port GID table */
+-	for (i = 0, offset = base; i < num_gids; offset++, i++)
++	for (i = 0, offset = base; i < num_gids; offset++, i++) {
+ 		memcpy(priv->port[port].gid_table.roce_gids[offset].raw,
+ 		       zgid_entry.raw, MLX4_ROCE_GID_ENTRY_SIZE);
++		priv->port[port].gid_table.gid_type[offset] =
++			MLX4_ROCE_GID_TYPE_INVALID;
++	}
+ 
+ 	/* Now, copy roce port gids table to mailbox for passing to FW */
+ 	gid_entry_mbox = (struct mlx4_roce_gid_entry *)mailbox->buf;
+@@ -1342,7 +1383,8 @@ static int mlx4_common_set_port(struct mlx4_dev *dev, int slave, u32 in_mod,
+ 	if (is_eth) {
+ 		if (slave != dev->caps.function &&
+ 		    in_modifier != MLX4_SET_PORT_GENERAL &&
+-		    in_modifier != MLX4_SET_PORT_GID_TABLE) {
++		    in_modifier != MLX4_SET_PORT_GID_TABLE &&
++		    in_modifier != MLX4_SET_PORT_ROCE_ADDR) {
+ 			mlx4_warn(dev, "denying SET_PORT for slave:%d\n",
+ 					slave);
+ 			return -EINVAL;
+@@ -1381,6 +1423,80 @@ static int mlx4_common_set_port(struct mlx4_dev *dev, int slave, u32 in_mod,
+ 							      gen_context);
+ 
+ 			break;
++		case MLX4_SET_PORT_ROCE_ADDR:
++			num_gids = mlx4_get_slave_num_gids(dev, slave, port);
++			base = mlx4_get_base_gid_ix(dev, slave, port);
++			for (i = 0; i < num_gids; i++) {
++				struct mlx4_roce_addr_mbox_entry *entry =
++					(struct mlx4_roce_addr_mbox_entry *)inbox->buf + i;
++
++				if (!mlx4_roce_addr_entry_valid(entry))
++					return -EINVAL;
++
++				if (!memcmp(entry->gid, zgid_entry.raw,
++					    MLX4_ROCE_GID_ENTRY_SIZE))
++					continue;
++
++				for (j = i + 1; j < num_gids; j++) {
++					struct mlx4_roce_addr_mbox_entry *entry2 =
++						(struct mlx4_roce_addr_mbox_entry *)inbox->buf + j;
++
++					if (!memcmp(entry2->gid, zgid_entry.raw,
++						    MLX4_ROCE_GID_ENTRY_SIZE))
++						continue;
++					if (!memcmp(entry->gid, entry2->gid,
++						    MLX4_ROCE_GID_ENTRY_SIZE))
++						return -EINVAL;
++				}
++			}
++
++			mutex_lock(&(priv->port[port].gid_table.mutex));
++			for (i = 0; i < MLX4_ROCE_MAX_GIDS; i++) {
++				struct mlx4_roce_gid_entry *gid_entry_tbl;
++
++				if (i >= base && i < base + num_gids)
++					continue;
++
++				gid_entry_tbl = &priv->port[port].gid_table.roce_gids[i];
++				if (!memcmp(gid_entry_tbl->raw, zgid_entry.raw,
++					    MLX4_ROCE_GID_ENTRY_SIZE))
++					continue;
++
++				for (j = 0; j < num_gids; j++) {
++					struct mlx4_roce_addr_mbox_entry *entry =
++						(struct mlx4_roce_addr_mbox_entry *)inbox->buf + j;
++
++					if (!memcmp(entry->gid, zgid_entry.raw,
++						    MLX4_ROCE_GID_ENTRY_SIZE))
++						continue;
++					if (!memcmp(entry->gid, gid_entry_tbl->raw,
++						    MLX4_ROCE_GID_ENTRY_SIZE)) {
++						mlx4_warn(dev, "requested gid entry for slave:%d is a duplicate of gid at index %d\n",
++							  slave, i);
++						mutex_unlock(&(priv->port[port].gid_table.mutex));
++						return -EINVAL;
++					}
++				}
++			}
++
++			for (i = 0, offset = base; i < num_gids; offset++, i++) {
++				struct mlx4_roce_addr_mbox_entry *entry =
++					(struct mlx4_roce_addr_mbox_entry *)inbox->buf + i;
++
++				memcpy(priv->port[port].gid_table.roce_gids[offset].raw,
++				       entry->gid, MLX4_ROCE_GID_ENTRY_SIZE);
++				priv->port[port].gid_table.gid_type[offset] =
++					memcmp(entry->gid, zgid_entry.raw,
++					       MLX4_ROCE_GID_ENTRY_SIZE) ?
++					entry->version : MLX4_ROCE_GID_TYPE_INVALID;
++			}
++			mlx4_fill_roce_addr_mbox(&priv->port[port].gid_table,
++						inbox->buf);
++			err = mlx4_cmd(dev, inbox->dma, in_mod & 0xffff, op_mod,
++				       MLX4_CMD_SET_PORT, MLX4_CMD_TIME_CLASS_B,
++				       MLX4_CMD_NATIVE);
++			mutex_unlock(&(priv->port[port].gid_table.mutex));
++			return err;
+ 		case MLX4_SET_PORT_GID_TABLE:
+ 			/* change to MULTIPLE entries: number of guest's gids
+ 			 * need a FOR-loop here over number of gids the guest has.
+@@ -1435,9 +1551,15 @@ static int mlx4_common_set_port(struct mlx4_dev *dev, int slave, u32 in_mod,
+ 
+ 			/* insert slave GIDs with memcpy, starting at slave's base index */
+ 			gid_entry_mbox = (struct mlx4_roce_gid_entry *)(inbox->buf);
+-			for (i = 0, offset = base; i < num_gids; gid_entry_mbox++, offset++, i++)
++			for (i = 0, offset = base; i < num_gids; gid_entry_mbox++, offset++, i++) {
+ 				memcpy(priv->port[port].gid_table.roce_gids[offset].raw,
+ 				       gid_entry_mbox->raw, MLX4_ROCE_GID_ENTRY_SIZE);
++				priv->port[port].gid_table.gid_type[offset] =
++					memcmp(gid_entry_mbox->raw, zgid_entry.raw,
++					       MLX4_ROCE_GID_ENTRY_SIZE) ?
++					MLX4_ROCE_GID_TYPE_V1 :
++					MLX4_ROCE_GID_TYPE_INVALID;
++			}
+ 
+ 			/* Now, copy roce port gids table to current mailbox for passing to FW */
+ 			gid_entry_mbox = (struct mlx4_roce_gid_entry *)(inbox->buf);
+@@ -1934,7 +2056,7 @@ int mlx4_get_slave_from_roce_gid(struct mlx4_dev *dev, int port, u8 *gid,
+ EXPORT_SYMBOL(mlx4_get_slave_from_roce_gid);
+ 
+ int mlx4_get_roce_gid_from_slave(struct mlx4_dev *dev, int port, int slave_id,
+-				 u8 *gid)
++				 u8 *gid, enum mlx4_roce_gid_type *gid_type)
+ {
+ 	struct mlx4_priv *priv = mlx4_priv(dev);
+ 
+@@ -1943,6 +2065,8 @@ int mlx4_get_roce_gid_from_slave(struct mlx4_dev *dev, int port, int slave_id,
+ 
+ 	memcpy(gid, priv->port[port].gid_table.roce_gids[slave_id].raw,
+ 	       MLX4_ROCE_GID_ENTRY_SIZE);
++	if (gid_type)
++		*gid_type = priv->port[port].gid_table.gid_type[slave_id];
+ 	return 0;
+ }
+ EXPORT_SYMBOL(mlx4_get_roce_gid_from_slave);
+diff --git a/include/linux/mlx4/device.h b/include/linux/mlx4/device.h
+index f016263e1..0038188dc 100644
+--- a/include/linux/mlx4/device.h
++++ b/include/linux/mlx4/device.h
+@@ -1476,8 +1476,15 @@ __be64 mlx4_get_slave_node_guid(struct mlx4_dev *dev, int slave);
+ 
+ int mlx4_get_slave_from_roce_gid(struct mlx4_dev *dev, int port, u8 *gid,
+ 				 int *slave_id);
++
++enum mlx4_roce_gid_type {
++	MLX4_ROCE_GID_TYPE_V1 = 0,
++	MLX4_ROCE_GID_TYPE_V2 = 2,
++	MLX4_ROCE_GID_TYPE_INVALID = 0xff,
++};
++
+ int mlx4_get_roce_gid_from_slave(struct mlx4_dev *dev, int port, int slave_id,
+-				 u8 *gid);
++				 u8 *gid, enum mlx4_roce_gid_type *gid_type);
+ 
+ int mlx4_FLOW_STEERING_IB_UC_QP_RANGE(struct mlx4_dev *dev, u32 min_range_qpn,
+ 				      u32 max_range_qpn);
