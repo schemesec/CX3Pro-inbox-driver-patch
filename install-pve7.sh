@@ -19,6 +19,7 @@ NO_BUILD=0
 NO_BACKUP=0
 FORCE_KERNEL=0
 NO_APT=0
+KEEP_CONFLICTS=0
 
 usage() {
 	cat <<EOF
@@ -32,6 +33,7 @@ Options:
   --no-backup        Do not back up the current installed module directory.
   --force-kernel     Allow kernels other than ${SUPPORTED_KERNEL}.
   --no-apt           Do not install build dependencies with apt.
+  --keep-conflicts   Do not move old OFED override modules/config out of the way.
   -h, --help         Show this help.
 
 Environment:
@@ -63,6 +65,9 @@ while [ "$#" -gt 0 ]; do
 		;;
 	--no-apt)
 		NO_APT=1
+		;;
+	--keep-conflicts)
+		KEEP_CONFLICTS=1
 		;;
 	-h|--help)
 		usage
@@ -205,6 +210,55 @@ install_module() {
 	run install -m 0644 "$src" "$dst"
 }
 
+backup_path() {
+	local path="$1"
+	local rel="${path#/}"
+	local dst="${BACKUP_DIR}/${rel}"
+
+	run mkdir -p "$(dirname "$dst")"
+	run mv "$path" "$dst"
+	log "moved ${path} to ${dst}"
+}
+
+remove_legacy_initramfs_block() {
+	local modules_file="/etc/initramfs-tools/modules"
+
+	if [ -f "$modules_file" ] && grep -q "^# mlx-research begin$" "$modules_file"; then
+		run mkdir -p "$BACKUP_DIR"
+		run cp -a "$modules_file" "${BACKUP_DIR}/etc-initramfs-tools-modules.before-cx3pro-inbox"
+		run sed -i "/^# mlx-research begin$/,/^# mlx-research end$/d" "$modules_file"
+		log "removed legacy mlx-research initramfs module block"
+	fi
+}
+
+disable_conflicting_overrides() {
+	local updates_dir="/lib/modules/${KVER}/updates"
+	local ofed_dir="${updates_dir}/mlnx-ofed-cx3"
+
+	if [ "$KEEP_CONFLICTS" -eq 1 ]; then
+		log "keeping existing conflicting module/config overrides by request"
+		return
+	fi
+
+	if [ -d "$ofed_dir" ]; then
+		log "disabling old OFED override tree: ${ofed_dir}"
+		backup_path "$ofed_dir"
+	fi
+
+	if [ -f /etc/modprobe.d/mlx4.conf ] &&
+	    grep -Eq 'roce_mode|ud_gid_type|enable_sys_tune' /etc/modprobe.d/mlx4.conf; then
+		log "disabling legacy OFED mlx4 module options"
+		backup_path /etc/modprobe.d/mlx4.conf
+	fi
+
+	if [ -f /etc/modprobe.d/mlx-research-cx3.conf ]; then
+		log "disabling legacy mlx-research blacklist/config file"
+		backup_path /etc/modprobe.d/mlx-research-cx3.conf
+	fi
+
+	remove_legacy_initramfs_block
+}
+
 write_module_config() {
 	local modprobe_file="/etc/modprobe.d/cx3pro-inbox-rocev2.conf"
 	local modules_file="/etc/initramfs-tools/modules"
@@ -304,6 +358,7 @@ done
 log
 
 log "=== update module config and dependency database ==="
+disable_conflicting_overrides
 write_module_config
 run depmod "$KVER"
 run update-initramfs -u -k "$KVER"
@@ -313,6 +368,18 @@ log "=== dependency check ==="
 run modprobe --show-depends -S "$KVER" mlx4_core
 run modprobe --show-depends -S "$KVER" mlx4_en
 run modprobe --show-depends -S "$KVER" mlx4_ib
+for module in mlx4_core mlx4_en mlx4_ib; do
+	resolved="$(modinfo -k "$KVER" -n "$module")"
+	case "$resolved" in
+	"${INSTALL_DIR}/"*)
+		log "resolved ${module} to ${resolved}"
+		;;
+	*)
+		log "error: ${module} resolves to ${resolved}, not ${INSTALL_DIR}"
+		exit 1
+		;;
+	esac
+done
 log
 
 log "install complete"
