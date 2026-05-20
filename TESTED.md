@@ -8,7 +8,7 @@ homelab CX3 Pro setup. It is not a production driver source.
 - Host: `pvs3`
 - Kernel: `7.0.2-2-pve`
 - Module install path: `/lib/modules/7.0.2-2-pve/updates/cx3pro-inbox-rocev2`
-- Patch repo commit tested: `4c224e9`
+- Patch repo commit tested: `8dea678`
 
 Validated:
 
@@ -23,9 +23,13 @@ Validated:
   `enp23s0.10`, and `enp23s0.20`.
 - Host-owned VF RDMA devices `mlx4_0` through `mlx4_7` expose RoCEv2 GIDs for
   `enp23s0v0` through `enp23s0v7`.
+- `verify-pve7.sh` passes after reboot, including the kernel warning scan for
+  `BUG`, `Oops`, `WARNING`, `Call Trace`, `Unknown symbol`, `disagrees`,
+  `__warn`, and `vhcr command:0x3a`.
 
-Current open item:
+Previously observed and fixed:
 
-- Boot still logs `ib_core` WARN/Call Trace entries during VF RDMA probe
-  cleanup. The VF RDMA devices come up and expose RoCEv2 GIDs, but this is not
-  considered clean yet.
+- VF reprobe from `cx3pro-sriov-vfs.service` used to trigger `ib_core`
+  `ib_free_cq` / `rdma_restrack_clean` WARNs through `mlx4_ib_remove`.
+  Commit `8dea678` fixes this by destroying nested RoCEv2 GSI QPs for all SQP
+  owners, including tunnel/proxy QPs, before CQ teardown.
