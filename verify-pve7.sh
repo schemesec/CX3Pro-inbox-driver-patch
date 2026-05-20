@@ -76,7 +76,8 @@ check_module_path() {
 }
 
 check_module_param() {
-	local param="$1" expected="$2" path="/sys/module/mlx4_core/parameters/${param}" actual
+	local param="$1" expected="$2" path actual
+	path="/sys/module/mlx4_core/parameters/${param}"
 	if [ ! -f "$path" ]; then
 		fail "mlx4_core parameter missing: $param"
 		return
