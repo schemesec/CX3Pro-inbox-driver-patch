@@ -20,6 +20,11 @@ only `mlx4_core.ko`, `mlx4_en.ko`, and `mlx4_ib.ko` for the current kernel, and
 installs them below `/lib/modules/<kernel>/updates/cx3pro-inbox-rocev2`.
 It does not install a replacement RDMA core or NVMe/RDMA stack.
 
+If stale OFED override modules/config are present from previous testing, the
+script backs them up and removes them from the active module path before
+running `depmod`. The dependency check must resolve `mlx4_core`, `mlx4_en`, and
+`mlx4_ib` to `updates/cx3pro-inbox-rocev2`.
+
 ## Current validation
 
 On `pvs3`, the patch was pulled from this repository, applied to a Proxmox
@@ -32,3 +37,8 @@ make drivers/net/ethernet/mellanox/mlx4/port.o \
 
 Both objects built successfully. A full kernel package build has not been
 completed yet.
+
+The installer was then tested on `pvs3` with `--build-only`, followed by
+`--no-build` installation. After `depmod`, all three mlx4 modules resolved to
+`/lib/modules/7.0.2-2-pve/updates/cx3pro-inbox-rocev2`, and `mlx4_ib` resolved
+against the stock inbox `ib_core`/`ib_uverbs`.

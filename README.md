@@ -22,3 +22,8 @@ The installer builds patched inbox `mlx4_core`, `mlx4_en`, and `mlx4_ib`
 modules for the currently running kernel, installs them under
 `/lib/modules/<kernel>/updates/cx3pro-inbox-rocev2`, updates module
 dependencies/initramfs, and leaves activation to the reboot.
+
+If an older `mlx-research`/OFED override tree is present, the installer moves
+that override and its legacy module options into `module-backups/` first. This
+is intentional: the inbox patch must resolve against the stock inbox RDMA core,
+not the ported OFED stack.
