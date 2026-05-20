@@ -8,7 +8,7 @@ homelab CX3 Pro setup. It is not a production driver source.
 - Host: `pvs3`
 - Kernel: `7.0.2-2-pve`
 - Module install path: `/lib/modules/7.0.2-2-pve/updates/cx3pro-inbox-rocev2`
-- Patch repo commit tested: `9ea890d`
+- Patch repo commit tested: `6de79d3`
 
 Validated:
 
@@ -26,11 +26,28 @@ Validated:
 - `verify-pve7.sh` passes after reboot, including the kernel warning scan for
   `BUG`, `Oops`, `WARNING`, `Call Trace`, `Unknown symbol`, `disagrees`,
   `__warn`, and `vhcr command:0x3a`.
+- Cross-host PF RoCEv2 `ib_write_bw` from `pvs1` to `pvs3` passes after
+  setting the pvs3 PF/VLAN MTU back to 9000:
+
+  ```sh
+  # pvs3 server
+  ib_write_bw -d rocep23s0 -i 1 -R -x 5 -F --report_gbits -s 65536
+
+  # pvs1 client
+  ib_write_bw -d mlx4_0 -i 1 -R -x 5 -F --report_gbits -s 65536 192.168.20.56
+  ```
+
+  Result: 65536-byte RDMA write, RoCEv2 IPv4-mapped GIDs
+  `192.168.20.50 -> 192.168.20.56`, RDMA MTU 2048, 49.25 Gbit/sec average.
+  A post-test pvs3 kernel warning scan returned no entries.
 
 Not yet repeated after the latest clean inbox-patch boot:
 
-- Cross-host PF `ib_write_bw` performance.
 - Cross-host VF `ib_write_bw` performance from a VM-assigned VF.
+
+Note: an earlier PF run failed with completion status 12 while pvs3 was at
+MTU 1500 and the test negotiated RDMA MTU 1024. Re-running after restoring
+`enp23s0`, `enp23s0.10`, and `enp23s0.20` to MTU 9000 passed.
 
 Previously observed and fixed:
 
