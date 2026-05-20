@@ -26,10 +26,26 @@ v2 GIDs.  This can be disabled with mlx4_core.enable_mfunc_roce_v2=0.
 Signed-off-by: scheme <scheme@scheme.home.schemesec.com>
 ---
 diff --git a/drivers/infiniband/hw/mlx4/qp.c b/drivers/infiniband/hw/mlx4/qp.c
-index 1cb890d3d..c01265705 100644
+index 1cb890d3d..d0d7fdc40 100644
 --- a/drivers/infiniband/hw/mlx4/qp.c
 +++ b/drivers/infiniband/hw/mlx4/qp.c
-@@ -3048,17 +3048,29 @@ static int build_mlx_header(struct mlx4_ib_qp *qp, const struct ib_ud_wr *wr,
+@@ -1695,12 +1695,11 @@ static int _mlx4_ib_destroy_qp(struct ib_qp *qp, struct ib_udata *udata)
+ int mlx4_ib_destroy_qp(struct ib_qp *qp, struct ib_udata *udata)
+ {
+ 	struct mlx4_ib_qp *mqp = to_mqp(qp);
++	struct mlx4_ib_sqp *sqp = mqp->sqp;
+ 
+-	if (mqp->mlx4_ib_qp_type == MLX4_IB_QPT_GSI) {
+-		struct mlx4_ib_sqp *sqp = mqp->sqp;
+-
+-		if (sqp->roce_v2_gsi)
++	if (sqp && sqp->roce_v2_gsi) {
+ 			ib_destroy_qp(sqp->roce_v2_gsi);
++			sqp->roce_v2_gsi = NULL;
+ 	}
+ 
+ 	return _mlx4_ib_destroy_qp(qp, udata);
+@@ -3048,17 +3047,29 @@ static int build_mlx_header(struct mlx4_ib_qp *qp, const struct ib_ud_wr *wr,
  	is_eth = rdma_port_get_link_layer(qp->ibqp.device, qp->port) == IB_LINK_LAYER_ETHERNET;
  	is_grh = mlx4_ib_ah_grh_present(ah);
  	if (is_eth) {
