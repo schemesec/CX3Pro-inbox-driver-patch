@@ -25,8 +25,78 @@ v2 GIDs.  This can be disabled with mlx4_core.enable_mfunc_roce_v2=0.
 
 Signed-off-by: scheme <scheme@scheme.home.schemesec.com>
 ---
+diff --git a/drivers/infiniband/hw/mlx4/ah.c b/drivers/infiniband/hw/mlx4/ah.c
+index 7321d6ab5fe1..fea0ad315d40 100644
+--- a/drivers/infiniband/hw/mlx4/ah.c
++++ b/drivers/infiniband/hw/mlx4/ah.c
+@@ -108,6 +108,8 @@ static int create_iboe_ah(struct ib_ah *ib_ah, struct rdma_ah_attr *ah_attr)
+ 		if (ret < 0)
+ 			return ret;
+ 		ah->av.eth.gid_index = ret;
++		ah->gid_type = gid_attr->gid_type;
++		ah->gid_type_valid = true;
+ 	} else {
+ 		/* mlx4_ib_create_ah_slave fills in the s_mac and the vlan */
+ 		ah->av.eth.gid_index = ah_attr->grh.sgid_index;
+@@ -181,6 +183,29 @@ int mlx4_ib_create_ah_slave(struct ib_ah *ah, struct rdma_ah_attr *ah_attr,
+ 
+ 	ah->type = ah_attr->type;
+ 
++	if (ah_attr->type == RDMA_AH_ATTR_TYPE_ROCE) {
++		const struct ib_global_route *grh = rdma_ah_read_grh(ah_attr);
++
++		if (grh->sgid_attr) {
++			mah->gid_type = grh->sgid_attr->gid_type;
++			mah->gid_type_valid = true;
++		} else {
++			enum mlx4_roce_gid_type gid_type;
++			union ib_gid gid;
++
++			ret = mlx4_get_roce_gid_from_slave(to_mdev(ah->device)->dev,
++							rdma_ah_get_port_num(ah_attr),
++							slave_sgid_index,
++							gid.raw, &gid_type);
++			if (!ret) {
++				mah->gid_type = gid_type == MLX4_ROCE_GID_TYPE_V2 ?
++					IB_GID_TYPE_ROCE_UDP_ENCAP :
++					IB_GID_TYPE_ROCE;
++				mah->gid_type_valid = true;
++			}
++		}
++	}
++
+ 	/* get rid of force-loopback bit */
+ 	mah->av.ib.port_pd &= cpu_to_be32(0x7FFFFFFF);
+ 
+diff --git a/drivers/infiniband/hw/mlx4/main.c b/drivers/infiniband/hw/mlx4/main.c
+index 63360c5a73c7..85eb1870cf98 100644
+--- a/drivers/infiniband/hw/mlx4/main.c
++++ b/drivers/infiniband/hw/mlx4/main.c
+@@ -2829,7 +2829,8 @@ static int mlx4_ib_probe(struct auxiliary_device *adev,
+ 			goto err_notif;
+ 		}
+ 	}
+-	if (dev->caps.flags2 & MLX4_DEV_CAP_FLAG2_ROCE_V1_V2) {
++	if (!mlx4_is_slave(dev) &&
++	    dev->caps.flags2 & MLX4_DEV_CAP_FLAG2_ROCE_V1_V2) {
+ 		err = mlx4_config_roce_v2_port(dev, ROCE_V2_UDP_DPORT);
+ 		if (err)
+ 			goto err_notif;
+diff --git a/drivers/infiniband/hw/mlx4/mlx4_ib.h b/drivers/infiniband/hw/mlx4/mlx4_ib.h
+index 5df5b955114e..1a728f61949b 100644
+--- a/drivers/infiniband/hw/mlx4/mlx4_ib.h
++++ b/drivers/infiniband/hw/mlx4/mlx4_ib.h
+@@ -389,6 +389,8 @@ struct mlx4_ib_srq {
+ struct mlx4_ib_ah {
+ 	struct ib_ah		ibah;
+ 	union mlx4_ext_av       av;
++	enum ib_gid_type	gid_type;
++	bool			gid_type_valid;
+ };
+ 
+ struct mlx4_ib_rwq_ind_table {
 diff --git a/drivers/infiniband/hw/mlx4/qp.c b/drivers/infiniband/hw/mlx4/qp.c
-index 1cb890d3d..d0d7fdc40 100644
+index 1cb890d3d93c..192d52ee4308 100644
 --- a/drivers/infiniband/hw/mlx4/qp.c
 +++ b/drivers/infiniband/hw/mlx4/qp.c
 @@ -1695,12 +1695,11 @@ static int _mlx4_ib_destroy_qp(struct ib_qp *qp, struct ib_udata *udata)
@@ -77,22 +147,36 @@ index 1cb890d3d..d0d7fdc40 100644
  			err = fill_gid_by_hw_index(ibdev, qp->port,
  						   ah->av.ib.gid_index, &sgid,
  						   &gid_type);
-diff --git a/drivers/infiniband/hw/mlx4/main.c b/drivers/infiniband/hw/mlx4/main.c
-index 63360c5a7..85eb1870c 100644
---- a/drivers/infiniband/hw/mlx4/main.c
-+++ b/drivers/infiniband/hw/mlx4/main.c
-@@ -2829,7 +2829,8 @@ static int mlx4_ib_probe(struct auxiliary_device *adev,
- 			goto err_notif;
+@@ -3553,15 +3564,21 @@ static int _mlx4_ib_post_send(struct ib_qp *ibqp, const struct ib_send_wr *wr,
+ 			struct mlx4_ib_ah *ah = to_mah(ud_wr(wr)->ah);
+ 			enum ib_gid_type gid_type;
+ 			union ib_gid gid;
++			int err = 0;
++
++			if (ah->gid_type_valid) {
++				gid_type = ah->gid_type;
++			} else if (fill_gid_by_hw_index(mdev, qp->port,
++							   ah->av.ib.gid_index,
++							   &gid, &gid_type)) {
++				err = -ENOENT;
++				pr_err("Failed to get gid at index %d. RoCEv2 will not work properly\n",
++				       ah->av.ib.gid_index);
++			}
+ 
+-			if (!fill_gid_by_hw_index(mdev, qp->port,
+-					   ah->av.ib.gid_index,
+-					   &gid, &gid_type))
++			if (!err)
+ 				qp = (gid_type == IB_GID_TYPE_ROCE_UDP_ENCAP) ?
+ 						to_mqp(sqp->roce_v2_gsi) : qp;
+-			else
+-				pr_err("Failed to get gid at index %d. RoCEv2 will not work properly\n",
+-				       ah->av.ib.gid_index);
  		}
  	}
--	if (dev->caps.flags2 & MLX4_DEV_CAP_FLAG2_ROCE_V1_V2) {
-+	if (!mlx4_is_slave(dev) &&
-+	    dev->caps.flags2 & MLX4_DEV_CAP_FLAG2_ROCE_V1_V2) {
- 		err = mlx4_config_roce_v2_port(dev, ROCE_V2_UDP_DPORT);
- 		if (err)
- 			goto err_notif;
+ 
 diff --git a/drivers/net/ethernet/mellanox/mlx4/fw.c b/drivers/net/ethernet/mellanox/mlx4/fw.c
-index 0005d9e2c..cb614f2e6 100644
+index 0005d9e2c2d6..cb614f2e6eea 100644
 --- a/drivers/net/ethernet/mellanox/mlx4/fw.c
 +++ b/drivers/net/ethernet/mellanox/mlx4/fw.c
 @@ -42,6 +42,11 @@
@@ -118,7 +202,7 @@ index 0005d9e2c..cb614f2e6 100644
  }
  
 diff --git a/drivers/net/ethernet/mellanox/mlx4/mlx4.h b/drivers/net/ethernet/mellanox/mlx4/mlx4.h
-index b213094ea..1340875db 100644
+index b213094ea30f..1340875db2f1 100644
 --- a/drivers/net/ethernet/mellanox/mlx4/mlx4.h
 +++ b/drivers/net/ethernet/mellanox/mlx4/mlx4.h
 @@ -761,6 +761,7 @@ struct mlx4_roce_gid_entry {
@@ -130,7 +214,7 @@ index b213094ea..1340875db 100644
  };
  
 diff --git a/drivers/net/ethernet/mellanox/mlx4/port.c b/drivers/net/ethernet/mellanox/mlx4/port.c
-index e3d0b13c1..c3e3caeab 100644
+index e3d0b13c1610..c3e3caeabfce 100644
 --- a/drivers/net/ethernet/mellanox/mlx4/port.c
 +++ b/drivers/net/ethernet/mellanox/mlx4/port.c
 @@ -34,6 +34,7 @@
@@ -345,7 +429,7 @@ index e3d0b13c1..c3e3caeab 100644
  }
  EXPORT_SYMBOL(mlx4_get_roce_gid_from_slave);
 diff --git a/include/linux/mlx4/device.h b/include/linux/mlx4/device.h
-index f016263e1..0038188dc 100644
+index f016263e1fcf..0038188dcd6d 100644
 --- a/include/linux/mlx4/device.h
 +++ b/include/linux/mlx4/device.h
 @@ -1476,8 +1476,15 @@ __be64 mlx4_get_slave_node_guid(struct mlx4_dev *dev, int slave);
