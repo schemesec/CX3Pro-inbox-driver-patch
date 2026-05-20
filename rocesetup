@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PARENT_IF="${PARENT_IF:-enp23s0}"
+VLAN10_ID="${VLAN10_ID:-10}"
+VLAN20_ID="${VLAN20_ID:-20}"
+VLAN10_IP="${VLAN10_IP:-}"
+VLAN20_IP="${VLAN20_IP:-}"
+MTU="${MTU:-9000}"
+INSTALL_PACKAGES="${INSTALL_PACKAGES:-0}"
+PERSIST_INTERFACES="${PERSIST_INTERFACES:-1}"
+INTERFACES_FILE="${INTERFACES_FILE:-/etc/network/interfaces}"
+INSTALL_DIR="${INSTALL_DIR:-/lib/modules/$(uname -r)/updates/cx3pro-inbox-rocev2}"
+
+usage() {
+	cat <<EOF
+Usage: $0 [options]
+
+Configure CX3 Pro PF VLAN interfaces for inbox mlx4 RoCEv2 testing.
+
+Options:
+  --install-packages    Install rdma-core/perftest tooling before setup.
+  -h, --help            Show this help.
+
+Environment:
+  PARENT_IF=...         Parent Ethernet PF. Default: enp23s0.
+  VLAN10_ID=...         First VLAN ID. Default: 10.
+  VLAN20_ID=...         Second VLAN ID. Default: 20.
+  VLAN10_IP=...         Optional address for VLAN10 interface.
+  VLAN20_IP=...         Optional address for VLAN20 interface.
+  MTU=...               MTU for PF and VLAN interfaces. Default: 9000.
+  PERSIST_INTERFACES=0|1 Write Proxmox ifupdown config. Default: 1.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+	--install-packages) INSTALL_PACKAGES=1 ;;
+	-h|--help) usage; exit 0 ;;
+	*) echo "error: unknown option: $1" >&2; usage >&2; exit 2 ;;
+	esac
+	shift
+done
+
+run() { echo "+ $*"; "$@"; }
+need_root() { [ "$(id -u)" -eq 0 ] || { echo "error: this script must run as root" >&2; exit 1; }; }
+need_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "error: missing command: $1" >&2; exit 1; }; }
+
+find_rdma_dev() {
+	local preferred_if="$1" dev ndev
+	for dev in /sys/class/infiniband/*; do
+		[ -d "$dev" ] || continue
+		for ndev in "$dev"/ports/*/gid_attrs/ndevs/*; do
+			[ -f "$ndev" ] || continue
+			[ "$(cat "$ndev" 2>/dev/null || true)" = "$preferred_if" ] || continue
+			basename "$dev"
+			return 0
+		done
+	done
+	return 1
+}
+
+show_gids() {
+	local dev portdir gidfile idx gid type ndev ipaddr
+	for dev in /sys/class/infiniband/*; do
+		[ -d "$dev" ] || continue
+		for portdir in "$dev"/ports/*; do
+			[ -d "$portdir/gids" ] || continue
+			for gidfile in "$portdir"/gids/*; do
+				idx="$(basename "$gidfile")"
+				gid="$(cat "$gidfile" 2>/dev/null || true)"
+				[ -n "$gid" ] && [ "$gid" != "0000:0000:0000:0000:0000:0000:0000:0000" ] || continue
+				type="$(cat "$portdir/gid_attrs/types/$idx" 2>/dev/null || true)"
+				ndev="$(cat "$portdir/gid_attrs/ndevs/$idx" 2>/dev/null || true)"
+				ipaddr=""
+				[ -z "$ndev" ] || ipaddr="$(ip -o addr show dev "$ndev" 2>/dev/null | awk '{print $4}' | paste -sd "," -)"
+				echo "dev=$(basename "$dev") port=$(basename "$portdir") idx=$idx type=$type ndev=$ndev ip=$ipaddr gid=$gid"
+			done
+		done
+	done
+}
+
+write_interfaces_config() {
+	local file="$1" begin="# cx3pro-inbox-rocev2 roce begin" end="# cx3pro-inbox-rocev2 roce end" tmp iface
+	tmp="$(mktemp)"
+	cp "$file" "${file}.bak.$(date +%Y%m%d-%H%M%S)" 2>/dev/null || true
+	[ -f "$file" ] && sed "/^${begin}$/,/^${end}$/d" "$file" >"$tmp" || : >"$tmp"
+	for iface in "$VLAN10_IF" "$VLAN20_IF"; do
+		if grep -Eq "^[[:space:]]*iface[[:space:]]+${iface}[[:space:]]" "$tmp"; then
+			echo "error: ${iface} already has an unmanaged stanza in ${file}" >&2
+			rm -f "$tmp"
+			exit 1
+		fi
+	done
+	cat "$tmp" >"$file"
+	rm -f "$tmp"
+	{
+		echo
+		echo "$begin"
+		if ! grep -Eq "^[[:space:]]*iface[[:space:]]+${PARENT_IF}[[:space:]]" "$file"; then
+			echo "auto ${PARENT_IF}"
+			echo "iface ${PARENT_IF} inet manual"
+			echo "    mtu ${MTU}"
+			echo
+		fi
+		echo "auto ${VLAN10_IF}"
+		echo "iface ${VLAN10_IF} inet manual"
+		[ -z "$VLAN10_IP" ] || echo "    address ${VLAN10_IP}"
+		echo "    mtu ${MTU}"
+		echo "    vlan-raw-device ${PARENT_IF}"
+		echo
+		echo "auto ${VLAN20_IF}"
+		echo "iface ${VLAN20_IF} inet manual"
+		[ -z "$VLAN20_IP" ] || echo "    address ${VLAN20_IP}"
+		echo "    mtu ${MTU}"
+		echo "    vlan-raw-device ${PARENT_IF}"
+		echo "$end"
+	} >>"$file"
+}
+
+need_root
+
+echo "=== CX3 Pro inbox RoCEv2 setup ==="
+echo "host=$(hostname)"
+echo "parent_if=${PARENT_IF}"
+echo "vlan${VLAN10_ID}_ip=${VLAN10_IP:-unset}"
+echo "vlan${VLAN20_ID}_ip=${VLAN20_IP:-unset}"
+echo "mtu=${MTU}"
+
+if [ "$INSTALL_PACKAGES" -eq 1 ]; then
+	run apt update
+	run apt install -y rdma-core ibverbs-providers ibverbs-utils infiniband-diags perftest ethtool iproute2 pciutils
+fi
+
+for cmd in ip ethtool rdma ibv_devices; do
+	need_cmd "$cmd"
+done
+
+if ! modprobe --show-depends mlx4_core | grep -q "$INSTALL_DIR"; then
+	echo "error: mlx4_core does not resolve to ${INSTALL_DIR}" >&2
+	echo "run ./install-pve7.sh from this repo and reboot before configuring RoCE" >&2
+	exit 1
+fi
+
+for module in mlx4_core mlx4_en mlx4_ib ib_uverbs rdma_cm; do
+	run modprobe "$module"
+done
+
+RDMA_DEV="$(find_rdma_dev "$PARENT_IF" || true)"
+[ -n "$RDMA_DEV" ] || { echo "error: no RDMA device found for $PARENT_IF" >&2; exit 1; }
+
+run ip link set "$PARENT_IF" up
+run ip link set "$PARENT_IF" mtu "$MTU"
+
+VLAN10_IF="${PARENT_IF}.${VLAN10_ID}"
+VLAN20_IF="${PARENT_IF}.${VLAN20_ID}"
+
+[ "$PERSIST_INTERFACES" -eq 0 ] || write_interfaces_config "$INTERFACES_FILE"
+
+ip link show "$VLAN10_IF" >/dev/null 2>&1 || run ip link add link "$PARENT_IF" name "$VLAN10_IF" type vlan id "$VLAN10_ID"
+ip link show "$VLAN20_IF" >/dev/null 2>&1 || run ip link add link "$PARENT_IF" name "$VLAN20_IF" type vlan id "$VLAN20_ID"
+
+for iface in "$VLAN10_IF" "$VLAN20_IF"; do
+	run ip link set "$iface" up
+	run ip link set "$iface" mtu "$MTU"
+done
+
+[ -z "$VLAN10_IP" ] || run ip addr replace "$VLAN10_IP" dev "$VLAN10_IF"
+[ -z "$VLAN20_IP" ] || run ip addr replace "$VLAN20_IP" dev "$VLAN20_IF"
+
+echo
+echo "RDMA device: $RDMA_DEV"
+show_gids | grep -E "(${PARENT_IF}|${VLAN10_IF}|${VLAN20_IF})" || true
+echo
+echo "Example server:"
+echo "  ib_write_bw -d ${RDMA_DEV} -i 1 -R -x 5 -F --report_gbits -s 65536"

@@ -27,3 +27,28 @@ If an older `mlx-research`/OFED override tree is present, the installer moves
 that override and its legacy module options into `module-backups/` first. This
 is intentional: the inbox patch must resolve against the stock inbox RDMA core,
 not the ported OFED stack.
+
+## Setup scripts
+
+The repo includes the same style of host-side helper scripts used in
+`mlx-research`, adapted for the inbox-driver patch:
+
+- `install-pve7.sh` builds and installs only the patched inbox `mlx4` modules.
+- `sriov_setup` configures CX3 Pro SR-IOV boot options and the VF VLAN service.
+- `rocesetup` configures PF VLAN interfaces for RoCEv2 testing.
+- `verify-pve7.sh` checks module resolution, RoCEv2 GIDs, VF VLAN/MAC state,
+  and kernel warnings.
+
+Example pvs3 flow after the first reboot:
+
+```sh
+cd /root/CX3Pro-inbox-driver-patch
+PF=enp23s0 NUM_VFS=8 VF_VLAN=20 ./sriov_setup
+reboot
+VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./rocesetup
+PF=enp23s0 NUM_VFS=8 VF_VLAN=20 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./verify-pve7.sh
+```
+
+Unlike the OFED port, these scripts do not set `roce_mode`, `ud_gid_type`, or
+load `mlx_compat`; RoCEv2 exposure comes from the patched inbox `mlx4` modules
+and `mlx4_core.enable_mfunc_roce_v2=1`.
