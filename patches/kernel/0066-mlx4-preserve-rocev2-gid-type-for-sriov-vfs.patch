@@ -70,7 +70,7 @@ index b213094ea..1340875db 100644
  };
  
 diff --git a/drivers/net/ethernet/mellanox/mlx4/port.c b/drivers/net/ethernet/mellanox/mlx4/port.c
-index e3d0b13c1..21959252f 100644
+index e3d0b13c1..c3e3caeab 100644
 --- a/drivers/net/ethernet/mellanox/mlx4/port.c
 +++ b/drivers/net/ethernet/mellanox/mlx4/port.c
 @@ -34,6 +34,7 @@
@@ -93,7 +93,7 @@ index e3d0b13c1..21959252f 100644
  }
  
  static int validate_index(struct mlx4_dev *dev,
-@@ -1069,6 +1072,48 @@ int mlx4_get_port_ib_caps(struct mlx4_dev *dev, u8 port, __be32 *caps)
+@@ -1069,6 +1072,49 @@ int mlx4_get_port_ib_caps(struct mlx4_dev *dev, u8 port, __be32 *caps)
  }
  static struct mlx4_roce_gid_entry zgid_entry;
  
@@ -113,6 +113,7 @@ index e3d0b13c1..21959252f 100644
 +	int i;
 +
 +	for (i = 0; i < MLX4_ROCE_MAX_GIDS; i++, entry++) {
++		memset(entry, 0, sizeof(*entry));
 +		memcpy(entry->gid, table->roce_gids[i].raw,
 +		       MLX4_ROCE_GID_ENTRY_SIZE);
 +		if (table->gid_type[i] == MLX4_ROCE_GID_TYPE_V2) {
@@ -142,7 +143,7 @@ index e3d0b13c1..21959252f 100644
  int mlx4_get_slave_num_gids(struct mlx4_dev *dev, int slave, int port)
  {
  	int vfs;
-@@ -1161,9 +1206,12 @@ static int mlx4_reset_roce_port_gids(struct mlx4_dev *dev, int slave,
+@@ -1161,9 +1207,12 @@ static int mlx4_reset_roce_port_gids(struct mlx4_dev *dev, int slave,
  
  	mutex_lock(&(priv->port[port].gid_table.mutex));
  	/* Zero-out gids belonging to that slave in the port GID table */
@@ -156,7 +157,7 @@ index e3d0b13c1..21959252f 100644
  
  	/* Now, copy roce port gids table to mailbox for passing to FW */
  	gid_entry_mbox = (struct mlx4_roce_gid_entry *)mailbox->buf;
-@@ -1342,7 +1390,8 @@ static int mlx4_common_set_port(struct mlx4_dev *dev, int slave, u32 in_mod,
+@@ -1342,7 +1391,8 @@ static int mlx4_common_set_port(struct mlx4_dev *dev, int slave, u32 in_mod,
  	if (is_eth) {
  		if (slave != dev->caps.function &&
  		    in_modifier != MLX4_SET_PORT_GENERAL &&
@@ -166,7 +167,7 @@ index e3d0b13c1..21959252f 100644
  			mlx4_warn(dev, "denying SET_PORT for slave:%d\n",
  					slave);
  			return -EINVAL;
-@@ -1381,6 +1430,81 @@ static int mlx4_common_set_port(struct mlx4_dev *dev, int slave, u32 in_mod,
+@@ -1381,6 +1431,81 @@ static int mlx4_common_set_port(struct mlx4_dev *dev, int slave, u32 in_mod,
  							      gen_context);
  
  			break;
@@ -248,7 +249,7 @@ index e3d0b13c1..21959252f 100644
  		case MLX4_SET_PORT_GID_TABLE:
  			/* change to MULTIPLE entries: number of guest's gids
  			 * need a FOR-loop here over number of gids the guest has.
-@@ -1435,9 +1559,15 @@ static int mlx4_common_set_port(struct mlx4_dev *dev, int slave, u32 in_mod,
+@@ -1435,9 +1560,15 @@ static int mlx4_common_set_port(struct mlx4_dev *dev, int slave, u32 in_mod,
  
  			/* insert slave GIDs with memcpy, starting at slave's base index */
  			gid_entry_mbox = (struct mlx4_roce_gid_entry *)(inbox->buf);
@@ -265,7 +266,7 @@ index e3d0b13c1..21959252f 100644
  
  			/* Now, copy roce port gids table to current mailbox for passing to FW */
  			gid_entry_mbox = (struct mlx4_roce_gid_entry *)(inbox->buf);
-@@ -1934,7 +2064,7 @@ int mlx4_get_slave_from_roce_gid(struct mlx4_dev *dev, int port, u8 *gid,
+@@ -1934,7 +2065,7 @@ int mlx4_get_slave_from_roce_gid(struct mlx4_dev *dev, int port, u8 *gid,
  EXPORT_SYMBOL(mlx4_get_slave_from_roce_gid);
  
  int mlx4_get_roce_gid_from_slave(struct mlx4_dev *dev, int port, int slave_id,
@@ -274,7 +275,7 @@ index e3d0b13c1..21959252f 100644
  {
  	struct mlx4_priv *priv = mlx4_priv(dev);
  
-@@ -1943,6 +2073,8 @@ int mlx4_get_roce_gid_from_slave(struct mlx4_dev *dev, int port, int slave_id,
+@@ -1943,6 +2074,8 @@ int mlx4_get_roce_gid_from_slave(struct mlx4_dev *dev, int port, int slave_id,
  
  	memcpy(gid, priv->port[port].gid_table.roce_gids[slave_id].raw,
  	       MLX4_ROCE_GID_ENTRY_SIZE);
