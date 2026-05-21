@@ -73,6 +73,24 @@ Validated:
   Result: 65536-byte RDMA write, RoCEv2 IPv4-mapped GIDs
   `192.168.20.50 -> 192.168.20.156-163`, RDMA MTU 2048. A post-test pvs3
   kernel warning scan returned no entries.
+- Concurrent cross-host host-owned VF RoCEv2 `ib_write_bw` passes across all
+  eight pvs3 VFs. Each VF used a distinct RDMA CM port and temporary
+  source-based routing on pvs3 so replies used the matching VF netdev:
+
+  ```text
+  VF0 enp23s0v0 192.168.20.156 port 18515 6.70 Gbit/sec
+  VF1 enp23s0v1 192.168.20.157 port 18516 6.65 Gbit/sec
+  VF2 enp23s0v2 192.168.20.158 port 18517 6.76 Gbit/sec
+  VF3 enp23s0v3 192.168.20.159 port 18518 6.65 Gbit/sec
+  VF4 enp23s0v4 192.168.20.160 port 18519 6.74 Gbit/sec
+  VF5 enp23s0v5 192.168.20.161 port 18520 6.64 Gbit/sec
+  VF6 enp23s0v6 192.168.20.162 port 18521 6.64 Gbit/sec
+  VF7 enp23s0v7 192.168.20.163 port 18522 6.80 Gbit/sec
+  ```
+
+  A post-test pvs3 kernel warning scan returned no entries. A prior local
+  all-VF concurrency attempt without unique RDMA CM ports was invalid because
+  multiple `ib_write_bw` servers tried to bind the same listen port.
 - Stock inbox `nvme-rdma` initiator on `pvs3` can discover and connect to the
   existing pvs1 NVMe/RDMA target over RoCEv2:
 
