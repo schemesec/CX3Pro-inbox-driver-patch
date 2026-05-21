@@ -91,6 +91,29 @@ Validated:
   A post-test pvs3 kernel warning scan returned no entries. A prior local
   all-VF concurrency attempt without unique RDMA CM ports was invalid because
   multiple `ib_write_bw` servers tried to bind the same listen port.
+- Twelve-VF SR-IOV mode is validated after changing `NUM_VFS=12` and
+  rebooting. The card reported `sriov_totalvfs=32`, `sriov_numvfs=12`, and all
+  twelve host-owned VF netdevs exposed IPv4 RoCEv2 GID index `3`. Sequential
+  cross-host RoCEv2 `ib_write_bw` from `pvs1` to all twelve pvs3 VFs passed:
+
+  ```text
+  VF0  enp23s0v0  192.168.20.156 mlx4_1    49.66 Gbit/sec
+  VF1  enp23s0v1  192.168.20.157 mlx4_2    50.55 Gbit/sec
+  VF2  enp23s0v2  192.168.20.158 mlx4_3    49.50 Gbit/sec
+  VF3  enp23s0v3  192.168.20.159 mlx4_4    50.65 Gbit/sec
+  VF4  enp23s0v4  192.168.20.160 rocep23s0 49.79 Gbit/sec
+  VF5  enp23s0v5  192.168.20.161 mlx4_5    50.54 Gbit/sec
+  VF6  enp23s0v6  192.168.20.162 mlx4_6    49.51 Gbit/sec
+  VF7  enp23s0v7  192.168.20.163 mlx4_7    49.69 Gbit/sec
+  VF8  enp23s0v8  192.168.20.164 mlx4_8    49.94 Gbit/sec
+  VF9  enp23s0v9  192.168.20.165 mlx4_9    50.58 Gbit/sec
+  VF10 enp23s0v10 192.168.20.166 mlx4_10   49.54 Gbit/sec
+  VF11 enp23s0v11 192.168.20.167 mlx4_11   49.68 Gbit/sec
+  ```
+
+  A post-test pvs3 kernel warning scan returned no entries. This is the largest
+  VF count currently expected to preserve one IPv4 RoCEv2 GID for every VF with
+  the patch's below-64 source GID index limit.
 - Stock inbox `nvme-rdma` initiator on `pvs3` can discover and connect to the
   existing pvs1 NVMe/RDMA target over RoCEv2:
 
