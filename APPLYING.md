@@ -17,6 +17,18 @@ For the install-script workflow, use:
 ./install-pve7.sh
 ```
 
+For a kernel upgrade, first check whether the patch still applies to the source
+for the running kernel:
+
+```sh
+./install-pve7.sh --apply-check-only --no-apt
+```
+
+A clean apply check means the source-level patch applied and passed
+`git diff --check`; it does not prove the modules build, boot, or pass RDMA
+traffic. Run the full installer and verifier before treating a new kernel as
+supported. `--strict-kernel` restores the old refuse-unlisted-kernels behavior.
+
 The script fetches a Proxmox `pve-kernel` checkout, applies the patch, builds
 only `mlx4_core.ko`, `mlx4_en.ko`, and `mlx4_ib.ko` for the current kernel, and
 installs them below `/lib/modules/<kernel>/updates/cx3pro-inbox-rocev2`.
@@ -34,8 +46,10 @@ running `depmod`. The dependency check must resolve `mlx4_core`, `mlx4_en`, and
 
 ## Current validation
 
-On `pvs3`, the installer has been tested against Proxmox kernel
-`7.0.2-2-pve`. The full mlx4 module build completed for:
+On `pvs3`, the installer and runtime tests have been validated against Proxmox
+kernel `7.0.2-2-pve`. Other kernels are allowed by the installer as unvalidated
+targets and must pass the same checks before being added to `TESTED_KERNELS`.
+The full mlx4 module build completed for:
 
 - `drivers/net/ethernet/mellanox/mlx4/mlx4_core.ko`
 - `drivers/net/ethernet/mellanox/mlx4/mlx4_en.ko`

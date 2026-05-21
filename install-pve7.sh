@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SUPPORTED_KERNEL="7.0.2-2-pve"
+TESTED_KERNELS="${TESTED_KERNELS:-7.0.2-2-pve}"
 KVER="${KVER:-$(uname -r)}"
 JOBS="${JOBS:-$(nproc)}"
 INSTALL_DIR="${INSTALL_DIR:-/lib/modules/${KVER}/updates/cx3pro-inbox-rocev2}"
@@ -18,6 +18,8 @@ BUILD_ONLY=0
 NO_BUILD=0
 NO_BACKUP=0
 FORCE_KERNEL=0
+STRICT_KERNEL=0
+APPLY_CHECK_ONLY=0
 NO_APT=0
 KEEP_CONFLICTS=0
 
@@ -31,7 +33,9 @@ Options:
   --build-only       Build modules but do not install into /lib/modules.
   --no-build         Install previously built modules from BUILD_ROOT.
   --no-backup        Do not back up the current installed module directory.
-  --force-kernel     Allow kernels other than ${SUPPORTED_KERNEL}.
+  --strict-kernel    Refuse kernels not listed in TESTED_KERNELS.
+  --force-kernel     Compatibility alias for the default non-strict behavior.
+  --apply-check-only Prepare source and verify the patch applies; do not build.
   --no-apt           Do not install build dependencies with apt.
   --keep-conflicts   Do not move old OFED override modules/config out of the way.
   -h, --help         Show this help.
@@ -41,6 +45,7 @@ Environment:
   JOBS=...           Parallel build jobs. Default: nproc.
   BUILD_ROOT=...     Build checkout directory. Default: /root/cx3pro-inbox-build.
   PVE_KERNEL_REF=... Optional pve-kernel git ref to check out before building.
+  TESTED_KERNELS=... Space-separated kernels known to have passed validation.
   INSTALL_DIR=...    Module install directory. Default:
                      /lib/modules/\$KVER/updates/cx3pro-inbox-rocev2
   BACKUP_DIR=...     Backup directory for previous installed modules.
@@ -62,6 +67,13 @@ while [ "$#" -gt 0 ]; do
 		;;
 	--force-kernel)
 		FORCE_KERNEL=1
+		;;
+	--strict-kernel)
+		STRICT_KERNEL=1
+		;;
+	--apply-check-only)
+		APPLY_CHECK_ONLY=1
+		BUILD_ONLY=1
 		;;
 	--no-apt)
 		NO_APT=1
@@ -119,6 +131,15 @@ kernel_localversion() {
 	local base
 	base="$(kernel_base_version)"
 	printf '%s\n' "${KVER#${base}}"
+}
+
+kernel_is_tested() {
+	local tested
+
+	for tested in $TESTED_KERNELS; do
+		[ "$KVER" = "$tested" ] && return 0
+	done
+	return 1
 }
 
 ensure_build_deps() {
@@ -324,13 +345,18 @@ log "kernel=${KVER}"
 log "jobs=${JOBS}"
 log "build_root=${BUILD_ROOT}"
 log "install_dir=${INSTALL_DIR}"
+log "tested_kernels=${TESTED_KERNELS}"
 log "log=${LOG}"
 log
 
-if [ "$KVER" != "$SUPPORTED_KERNEL" ] && [ "$FORCE_KERNEL" -ne 1 ]; then
-	log "error: this script is validated for ${SUPPORTED_KERNEL}, current target is ${KVER}"
-	log "rerun with --force-kernel only if intentionally testing another kernel"
-	exit 1
+if ! kernel_is_tested; then
+	if [ "$STRICT_KERNEL" -eq 1 ] && [ "$FORCE_KERNEL" -ne 1 ]; then
+		log "error: ${KVER} is not in TESTED_KERNELS: ${TESTED_KERNELS}"
+		log "rerun without --strict-kernel, or with --force-kernel if intentionally testing this kernel"
+		exit 1
+	fi
+	log "warning: ${KVER} is not in TESTED_KERNELS: ${TESTED_KERNELS}"
+	log "warning: continuing as an unvalidated kernel; build and runtime tests must pass before treating it as supported"
 fi
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -345,6 +371,12 @@ need_file "/lib/modules/${KVER}/build/Module.symvers"
 if [ "$NO_BUILD" -eq 0 ]; then
 	ensure_build_deps
 	prepare_source
+	if [ "$APPLY_CHECK_ONLY" -eq 1 ]; then
+		log "apply-check-only complete"
+		log "patch applied cleanly to source version $(kernel_base_version)"
+		log "log=${LOG}"
+		exit 0
+	fi
 	build_modules
 else
 	log "=== skipping build by request ==="

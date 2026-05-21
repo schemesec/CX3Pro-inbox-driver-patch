@@ -21,7 +21,9 @@ reboot
 The installer builds patched inbox `mlx4_core`, `mlx4_en`, and `mlx4_ib`
 modules for the currently running kernel, installs them under
 `/lib/modules/<kernel>/updates/cx3pro-inbox-rocev2`, updates module
-dependencies/initramfs, and leaves activation to the reboot.
+dependencies/initramfs, and leaves activation to the reboot. Kernels outside
+`TESTED_KERNELS` are allowed by default but are treated as unvalidated until the
+build, boot, verifier, and RDMA traffic tests pass.
 
 `mlx4_core` and `mlx4_ib` contain the RoCEv2/SR-IOV logic changes. `mlx4_en`
 is built and installed from the same patched inbox source tree so the active
@@ -31,6 +33,30 @@ If an older `mlx-research`/OFED override tree is present, the installer moves
 that override and its legacy module options into `module-backups/` first. This
 is intentional: the inbox patch must resolve against the stock inbox RDMA core,
 not the ported OFED stack.
+
+## Kernel upgrades
+
+The patch is intended to be source-level portable across nearby Proxmox kernels,
+but every kernel still needs its own module build. On an upgraded host, run an
+apply-only check first:
+
+```sh
+cd /root/CX3Pro-inbox-driver-patch
+git pull
+./install-pve7.sh --apply-check-only --no-apt
+```
+
+If that passes, build and install for the running kernel:
+
+```sh
+./install-pve7.sh --no-apt
+reboot
+PF=enp23s0 NUM_VFS=8 VF_VLAN=20 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./verify-pve7.sh
+```
+
+Use `--strict-kernel` only when you want the installer to refuse kernels not
+listed in `TESTED_KERNELS`. `--force-kernel` is kept as a compatibility alias
+for intentionally testing an unlisted kernel.
 
 ## Setup scripts
 
