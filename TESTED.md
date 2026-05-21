@@ -8,7 +8,7 @@ homelab CX3 Pro setup. It is not a production driver source.
 - Host: `pvs3`
 - Kernel: `7.0.2-2-pve`
 - Module install path: `/lib/modules/7.0.2-2-pve/updates/cx3pro-inbox-rocev2`
-- Patch repo commit tested: `349b632`
+- Driver patch commit tested: `009a0ad`
 
 Validated:
 
@@ -54,6 +54,25 @@ Validated:
   Result: 65536-byte RDMA write, RoCEv2 IPv4-mapped GIDs
   `192.168.20.156 -> 192.168.20.156`, RDMA MTU 2048, 46.80 Gbit/sec average.
   A post-test pvs3 kernel warning scan returned no entries.
+- Cross-host host-owned VF RoCEv2 `ib_write_bw` from `pvs1` to all eight
+  pvs3 host-owned VFs passes after reboot with IPv4 RoCEv2 GID index `3` on
+  each VF. The test used pvs1 only as the `ib_write_bw` client and restored
+  the pvs3 route to `enp23s0.20` after testing:
+
+  ```text
+  VF0 enp23s0v0 192.168.20.156 mlx4_1    49.40 Gbit/sec
+  VF1 enp23s0v1 192.168.20.157 mlx4_2    49.48 Gbit/sec
+  VF2 enp23s0v2 192.168.20.158 mlx4_3    49.30 Gbit/sec
+  VF3 enp23s0v3 192.168.20.159 mlx4_4    50.50 Gbit/sec
+  VF4 enp23s0v4 192.168.20.160 mlx4_5    49.96 Gbit/sec
+  VF5 enp23s0v5 192.168.20.161 mlx4_6    49.48 Gbit/sec
+  VF6 enp23s0v6 192.168.20.162 rocep23s0 50.18 Gbit/sec
+  VF7 enp23s0v7 192.168.20.163 mlx4_7    50.52 Gbit/sec
+  ```
+
+  Result: 65536-byte RDMA write, RoCEv2 IPv4-mapped GIDs
+  `192.168.20.50 -> 192.168.20.156-163`, RDMA MTU 2048. A post-test pvs3
+  kernel warning scan returned no entries.
 - Stock inbox `nvme-rdma` initiator on `pvs3` can discover and connect to the
   existing pvs1 NVMe/RDMA target over RoCEv2:
 
@@ -71,7 +90,7 @@ Validated:
 
 Not yet repeated after the latest clean inbox-patch boot:
 
-- Cross-host VF `ib_write_bw` performance from a VM-assigned VF.
+- Cross-host VF `ib_write_bw` from a VM-assigned passthrough VF.
 
 Note: an earlier PF run failed with completion status 12 while pvs3 was at
 MTU 1500 and the test negotiated RDMA MTU 1024. Re-running after restoring
