@@ -8,7 +8,7 @@ homelab CX3 Pro setup. It is not a production driver source.
 - Host: `pvs3`
 - Kernel: `7.0.2-2-pve`
 - Module install path: `/lib/modules/7.0.2-2-pve/updates/cx3pro-inbox-rocev2`
-- Patch repo commit tested: `6de79d3`
+- Patch repo commit tested: `349b632`
 
 Validated:
 
@@ -19,10 +19,12 @@ Validated:
   initramfs, and makes `modprobe --show-depends` resolve all three `mlx4`
   modules from `updates/cx3pro-inbox-rocev2`.
 - After reboot, `mlx4_core.enable_mfunc_roce_v2=Y`.
-- PF RDMA device `rocep23s0` exposes RoCEv2 GIDs for `enp23s0`,
+- PF RDMA device `mlx4_0` exposes RoCEv2 GIDs for `enp23s0`,
   `enp23s0.10`, and `enp23s0.20`.
-- Host-owned VF RDMA devices `mlx4_0` through `mlx4_7` expose RoCEv2 GIDs for
-  `enp23s0v0` through `enp23s0v7`.
+- Host-owned VF RDMA devices expose RoCEv2 GIDs for `enp23s0v0` through
+  `enp23s0v7`. RDMA device names are not stable across boots; map them from
+  `/sys/class/infiniband/*/ports/*/gid_attrs/ndevs/*` instead of hardcoding
+  names in tests.
 - `verify-pve7.sh` passes after reboot, including the kernel warning scan for
   `BUG`, `Oops`, `WARNING`, `Call Trace`, `Unknown symbol`, `disagrees`,
   `__warn`, and `vhcr command:0x3a`.
@@ -39,6 +41,18 @@ Validated:
 
   Result: 65536-byte RDMA write, RoCEv2 IPv4-mapped GIDs
   `192.168.20.50 -> 192.168.20.56`, RDMA MTU 2048, 49.25 Gbit/sec average.
+  A post-test pvs3 kernel warning scan returned no entries.
+- Local host-owned VF RoCEv2 `ib_write_bw` passes on pvs3 after reboot.
+  On this boot VF0 mapped to RDMA device `rocep23s0`, netdev `enp23s0v0`,
+  with IPv4 RoCEv2 GID index `3` for `192.168.20.156`:
+
+  ```sh
+  ib_write_bw -d rocep23s0 -i 1 -R -x 3 -F --report_gbits -s 65536
+  ib_write_bw -d rocep23s0 -i 1 -R -x 3 -F --report_gbits -s 65536 192.168.20.156
+  ```
+
+  Result: 65536-byte RDMA write, RoCEv2 IPv4-mapped GIDs
+  `192.168.20.156 -> 192.168.20.156`, RDMA MTU 2048, 46.80 Gbit/sec average.
   A post-test pvs3 kernel warning scan returned no entries.
 - Stock inbox `nvme-rdma` initiator on `pvs3` can discover and connect to the
   existing pvs1 NVMe/RDMA target over RoCEv2:
