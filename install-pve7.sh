@@ -242,7 +242,7 @@ verify_mlx4_ib_symbol_versions() {
 
 	for symbol in "${symbols[@]}"; do
 		expected="$(awk -v sym="$symbol" '$2 == sym { print $1; exit }' "$core_symvers")"
-		actual="$(modprobe --dump-modversions "$ib_module" | awk -v sym="$symbol" '$2 == sym { print $1; exit }')"
+		actual="$(modprobe --dump-modversions "$ib_module" | awk -v sym="$symbol" '$2 == sym { value = $1 } END { print value }')"
 		if [ -z "$expected" ] || [ -z "$actual" ] || [ "$expected" != "$actual" ]; then
 			log "error: mlx4_ib symbol CRC mismatch for ${symbol}: expected=${expected:-missing} actual=${actual:-missing}"
 			exit 1
