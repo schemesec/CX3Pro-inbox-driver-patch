@@ -1,31 +1,31 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: scheme <scheme@scheme.home.schemesec.com>
-Date: Wed, 20 May 2026 00:00:00 -0400
-Subject: [PATCH] mlx4: preserve RoCEv2 GID type for SR-IOV VFs
+Date: Fri, 22 May 2026 03:30:00 -0400
+Subject: [PATCH] mlx4: expose RoCEv2-only GIDs for SR-IOV VFs
 
 The mlx4 PF command wrapper allowed SR-IOV VFs to update their RoCE GID
 entries through MLX4_SET_PORT_GID_TABLE, but rejected
-MLX4_SET_PORT_ROCE_ADDR.  The older GID table command carries only the raw
+MLX4_SET_PORT_ROCE_ADDR. The older GID table command carries only the raw
 GID bytes, while the RoCE address command also carries the RoCE version.
 
-As a result, a VF could not expose RoCE v2 GIDs through the PF-managed GID
-cache.  mlx4_ib later reads that cache when building packets for VFs, but it
-only recovered the GID bytes and therefore could not identify a cached VF GID
-as RoCE v2/UDP-encapsulated.
+As a result, a VF could not reliably expose RoCEv2 GIDs through the
+PF-managed GID cache. mlx4_ib later reads that cache when building packets
+for VFs, but it only recovered the GID bytes and therefore could not identify
+a cached VF GID as RoCEv2/UDP-encapsulated.
 
 Allow VF MLX4_SET_PORT_ROCE_ADDR updates, store the per-entry RoCE GID type
 alongside the existing raw GID cache, and return that type to mlx4_ib so VF
-traffic using RoCE v2 GIDs is encoded as RoCE v2.  Preserve duplicate-GID
+traffic using RoCEv2 GIDs is encoded as RoCEv2. Preserve duplicate-GID
 rejection for duplicate GID/type pairs while allowing the normal RoCEv1 and
 RoCEv2 entries that share the same raw GID bytes.
 
-For CX3 Pro SR-IOV testing, keep the firmware RoCE v1/v2 capability visible
-in multifunction mode by default so the inbox RDMA core creates both v1 and
-v2 GIDs.  This can be disabled with mlx4_core.enable_mfunc_roce_v2=0.
+For CX3 Pro SR-IOV testing, advertise RoCEv2-only capability to VFs when the
+device supports RoCEv1/v2. This avoids spending VF GID table space on RoCEv1
+entries while preserving PF RoCEv1/v2 capability.
 
-Keep SR-IOV VF RoCE GID allocation within source GID indexes below 64.
-The PF firmware table remains 128 entries, but CX3 Pro data QPs fail work
-completion when higher-numbered VFs use source GID indexes above 63.
+Compact the multifunction VF GID allocation to two entries per VF. With the
+PF reservation reduced to eight GIDs, twelve host-owned VFs expose link-local
+and IPv4 RoCEv2 GIDs and pass RDMA-CM RoCEv2 ib_write_bw tests against pvs1.
 
 Signed-off-by: scheme <scheme@scheme.home.schemesec.com>
 ---
@@ -73,10 +73,30 @@ index 7321d6ab5fe1..fea0ad315d40 100644
  	mah->av.ib.port_pd &= cpu_to_be32(0x7FFFFFFF);
  
 diff --git a/drivers/infiniband/hw/mlx4/main.c b/drivers/infiniband/hw/mlx4/main.c
-index 63360c5a73c7..85eb1870cf98 100644
+index 63360c5a73c7..8d815ac6bbf8 100644
 --- a/drivers/infiniband/hw/mlx4/main.c
 +++ b/drivers/infiniband/hw/mlx4/main.c
-@@ -2829,7 +2829,8 @@ static int mlx4_ib_probe(struct auxiliary_device *adev,
+@@ -2482,11 +2482,15 @@ static int mlx4_port_immutable(struct ib_device *ibdev, u32 port_num,
+ 		immutable->core_cap_flags = RDMA_CORE_PORT_IBA_IB;
+ 		immutable->max_mad_size = IB_MGMT_MAD_SIZE;
+ 	} else {
+-		if (mdev->dev->caps.flags & MLX4_DEV_CAP_FLAG_IBOE)
++		if (mdev->dev->caps.flags2 & MLX4_DEV_CAP_FLAG2_ROCE_V1_V2) {
++			if (mlx4_is_slave(mdev->dev))
++				immutable->core_cap_flags = RDMA_CORE_PORT_IBA_ROCE_UDP_ENCAP;
++			else
++				immutable->core_cap_flags = RDMA_CORE_PORT_IBA_ROCE |
++					RDMA_CORE_PORT_IBA_ROCE_UDP_ENCAP;
++		} else if (mdev->dev->caps.flags & MLX4_DEV_CAP_FLAG_IBOE) {
+ 			immutable->core_cap_flags = RDMA_CORE_PORT_IBA_ROCE;
+-		if (mdev->dev->caps.flags2 & MLX4_DEV_CAP_FLAG2_ROCE_V1_V2)
+-			immutable->core_cap_flags = RDMA_CORE_PORT_IBA_ROCE |
+-				RDMA_CORE_PORT_IBA_ROCE_UDP_ENCAP;
++		}
+ 		immutable->core_cap_flags |= RDMA_CORE_PORT_RAW_PACKET;
+ 		if (immutable->core_cap_flags & (RDMA_CORE_PORT_IBA_ROCE |
+ 		    RDMA_CORE_PORT_IBA_ROCE_UDP_ENCAP))
+@@ -2829,7 +2833,8 @@ static int mlx4_ib_probe(struct auxiliary_device *adev,
  			goto err_notif;
  		}
  	}
@@ -218,7 +238,7 @@ index b213094ea30f..1340875db2f1 100644
  };
  
 diff --git a/drivers/net/ethernet/mellanox/mlx4/port.c b/drivers/net/ethernet/mellanox/mlx4/port.c
-index e3d0b13c1610..36d1c8b33aec 100644
+index e3d0b13c1610..fd6fc9fbaa31 100644
 --- a/drivers/net/ethernet/mellanox/mlx4/port.c
 +++ b/drivers/net/ethernet/mellanox/mlx4/port.c
 @@ -34,6 +34,7 @@
@@ -241,7 +261,7 @@ index e3d0b13c1610..36d1c8b33aec 100644
  }
  
  static int validate_index(struct mlx4_dev *dev,
-@@ -1069,6 +1072,61 @@ int mlx4_get_port_ib_caps(struct mlx4_dev *dev, u8 port, __be32 *caps)
+@@ -1069,6 +1072,63 @@ int mlx4_get_port_ib_caps(struct mlx4_dev *dev, u8 port, __be32 *caps)
  }
  static struct mlx4_roce_gid_entry zgid_entry;
  
@@ -294,37 +314,38 @@ index e3d0b13c1610..36d1c8b33aec 100644
 + * numbered VFs receive indexes that the QP path cannot use.
 + */
 +#define MLX4_ROCE_MFUNC_QP_GIDS 64
++#define MLX4_ROCE_MFUNC_V2_GIDS_PER_VF 2
 +
-+static int mlx4_roce_mfunc_gid_limit(void)
++static int mlx4_roce_mfunc_vf_gids(int vfs)
 +{
-+	return min_t(int, MLX4_ROCE_MAX_GIDS, MLX4_ROCE_MFUNC_QP_GIDS);
++	return min_t(int, MLX4_ROCE_MAX_GIDS - MLX4_ROCE_PF_GIDS,
++		     MLX4_ROCE_MFUNC_V2_GIDS_PER_VF * vfs);
 +}
 +
  int mlx4_get_slave_num_gids(struct mlx4_dev *dev, int slave, int port)
  {
  	int vfs;
-@@ -1100,9 +1158,9 @@ int mlx4_get_slave_num_gids(struct mlx4_dev *dev, int slave, int port)
+@@ -1100,9 +1160,7 @@ int mlx4_get_slave_num_gids(struct mlx4_dev *dev, int slave, int port)
  					   dev->persist->num_vfs + 1);
  	}
  	vfs = bitmap_weight(slaves_pport.slaves, dev->persist->num_vfs + 1) - 1;
 -	if (slave_gid <= ((MLX4_ROCE_MAX_GIDS - MLX4_ROCE_PF_GIDS) % vfs))
 -		return ((MLX4_ROCE_MAX_GIDS - MLX4_ROCE_PF_GIDS) / vfs) + 1;
 -	return (MLX4_ROCE_MAX_GIDS - MLX4_ROCE_PF_GIDS) / vfs;
-+	if (slave_gid <= ((mlx4_roce_mfunc_gid_limit() - MLX4_ROCE_PF_GIDS) % vfs))
-+		return ((mlx4_roce_mfunc_gid_limit() - MLX4_ROCE_PF_GIDS) / vfs) + 1;
-+	return (mlx4_roce_mfunc_gid_limit() - MLX4_ROCE_PF_GIDS) / vfs;
++	return MLX4_ROCE_MFUNC_V2_GIDS_PER_VF;
  }
  
  int mlx4_get_base_gid_ix(struct mlx4_dev *dev, int slave, int port)
-@@ -1136,7 +1194,7 @@ int mlx4_get_base_gid_ix(struct mlx4_dev *dev, int slave, int port)
+@@ -1136,8 +1194,8 @@ int mlx4_get_base_gid_ix(struct mlx4_dev *dev, int slave, int port)
  		slave_gid -= bitmap_weight(slaves_pport_actv.slaves,
  					   dev->persist->num_vfs + 1);
  	}
 -	gids = MLX4_ROCE_MAX_GIDS - MLX4_ROCE_PF_GIDS;
-+	gids = mlx4_roce_mfunc_gid_limit() - MLX4_ROCE_PF_GIDS;
  	vfs = bitmap_weight(slaves_pport.slaves, dev->persist->num_vfs + 1) - 1;
++	gids = mlx4_roce_mfunc_vf_gids(vfs);
  	if (slave_gid <= gids % vfs)
  		return MLX4_ROCE_PF_GIDS + ((gids / vfs) + 1) * (slave_gid - 1);
+ 
 @@ -1161,9 +1219,12 @@ static int mlx4_reset_roce_port_gids(struct mlx4_dev *dev, int slave,
  
  	mutex_lock(&(priv->port[port].gid_table.mutex));
@@ -453,11 +474,19 @@ index e3d0b13c1610..36d1c8b33aec 100644
  	struct mlx4_priv *priv = mlx4_priv(dev);
  	int i, found_ix = -1;
 -	int vf_gids = MLX4_ROCE_MAX_GIDS - MLX4_ROCE_PF_GIDS;
-+	int vf_gids = mlx4_roce_mfunc_gid_limit() - MLX4_ROCE_PF_GIDS;
++	int vf_gids;
  	struct mlx4_slaves_pport slaves_pport;
  	unsigned num_vfs;
  	int slave_gid;
-@@ -1934,7 +2077,7 @@ int mlx4_get_slave_from_roce_gid(struct mlx4_dev *dev, int port, u8 *gid,
+@@ -1850,6 +1993,7 @@ int mlx4_get_slave_from_roce_gid(struct mlx4_dev *dev, int port, u8 *gid,
+ 	slaves_pport = mlx4_phys_to_slaves_pport(dev, port);
+ 	num_vfs = bitmap_weight(slaves_pport.slaves,
+ 				dev->persist->num_vfs + 1) - 1;
++	vf_gids = mlx4_roce_mfunc_vf_gids(num_vfs);
+ 
+ 	for (i = 0; i < MLX4_ROCE_MAX_GIDS; i++) {
+ 		if (!memcmp(priv->port[port].gid_table.roce_gids[i].raw, gid,
+@@ -1934,7 +2078,7 @@ int mlx4_get_slave_from_roce_gid(struct mlx4_dev *dev, int port, u8 *gid,
  EXPORT_SYMBOL(mlx4_get_slave_from_roce_gid);
  
  int mlx4_get_roce_gid_from_slave(struct mlx4_dev *dev, int port, int slave_id,
@@ -466,7 +495,7 @@ index e3d0b13c1610..36d1c8b33aec 100644
  {
  	struct mlx4_priv *priv = mlx4_priv(dev);
  
-@@ -1943,6 +2086,8 @@ int mlx4_get_roce_gid_from_slave(struct mlx4_dev *dev, int port, int slave_id,
+@@ -1943,6 +2087,8 @@ int mlx4_get_roce_gid_from_slave(struct mlx4_dev *dev, int port, int slave_id,
  
  	memcpy(gid, priv->port[port].gid_table.roce_gids[slave_id].raw,
  	       MLX4_ROCE_GID_ENTRY_SIZE);
@@ -476,9 +505,18 @@ index e3d0b13c1610..36d1c8b33aec 100644
  }
  EXPORT_SYMBOL(mlx4_get_roce_gid_from_slave);
 diff --git a/include/linux/mlx4/device.h b/include/linux/mlx4/device.h
-index f016263e1fcf..0038188dcd6d 100644
+index f016263e1fcf..5d3307169716 100644
 --- a/include/linux/mlx4/device.h
 +++ b/include/linux/mlx4/device.h
+@@ -62,7 +62,7 @@
+ #define MLX4_RATELIMIT_DEFAULT		0x00ff
+ 
+ #define MLX4_ROCE_MAX_GIDS	128
+-#define MLX4_ROCE_PF_GIDS	16
++#define MLX4_ROCE_PF_GIDS	8
+ 
+ enum {
+ 	MLX4_FLAG_MSI_X		= 1 << 0,
 @@ -1476,8 +1476,15 @@ __be64 mlx4_get_slave_node_guid(struct mlx4_dev *dev, int slave);
  
  int mlx4_get_slave_from_roce_gid(struct mlx4_dev *dev, int port, u8 *gid,
