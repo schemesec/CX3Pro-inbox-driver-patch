@@ -52,6 +52,10 @@ If that passes, build and install for the running kernel:
 ./install-pve7.sh --no-apt
 reboot
 PF=enp23s0 NUM_VFS=8 VF_VLAN=20 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./verify-pve7.sh
+
+# Optional: host-owned VF test IPs visible in the Proxmox network GUI.
+# Do not use this for VFs assigned to VMs.
+NUM_VFS=12 VF_IP_BASE=192.168.20. VF_ROUTE_CIDR=192.168.20.0/24 ./vf_roce_test_ifaces
 ```
 
 Use `--strict-kernel` only when you want the installer to refuse kernels not
@@ -68,6 +72,8 @@ The repo includes the same style of host-side helper scripts used in
 - `rocesetup` configures PF VLAN interfaces for RoCEv2 testing.
 - `verify-pve7.sh` checks module resolution, RoCEv2 GIDs, VF VLAN/MAC state,
   and kernel warnings.
+- `vf_roce_test_ifaces` optionally writes host-owned VF test IPs to
+  `/etc/network/interfaces` so Proxmox can display them as managed config.
 
 Example pvs3 flow after the first reboot:
 
@@ -77,6 +83,10 @@ PF=enp23s0 NUM_VFS=8 VF_VLAN=20 ./sriov_setup
 reboot
 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./rocesetup
 PF=enp23s0 NUM_VFS=8 VF_VLAN=20 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./verify-pve7.sh
+
+# Optional host-owned VF addresses for RDMA-CM testing, visible in Proxmox.
+# Skip this for VFs assigned to VMs.
+NUM_VFS=12 VF_IP_BASE=192.168.20. VF_ROUTE_CIDR=192.168.20.0/24 ./vf_roce_test_ifaces
 ```
 
 Unlike the OFED port, these scripts do not set `roce_mode`, `ud_gid_type`, or

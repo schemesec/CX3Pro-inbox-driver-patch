@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PF="${PF:-enp23s0}"
+NUM_VFS="${NUM_VFS:-12}"
+VF_PREFIX="${VF_PREFIX:-enp23s0v}"
+VF_IPS="${VF_IPS:-}"
+VF_IP_BASE="${VF_IP_BASE:-}"
+VF_IP_CIDR="${VF_IP_CIDR:-24}"
+VF_ROUTE_CIDR="${VF_ROUTE_CIDR:-}"
+TABLE_BASE="${TABLE_BASE:-160}"
+MTU="${MTU:-9000}"
+PERSIST_INTERFACES="${PERSIST_INTERFACES:-1}"
+APPLY_RUNTIME="${APPLY_RUNTIME:-1}"
+INTERFACES_FILE="${INTERFACES_FILE:-/etc/network/interfaces}"
+
+usage() {
+	cat <<USAGE
+Usage: $0 [options]
+
+Configure host-owned CX3 Pro VF test IPs for RoCEv2/RDMA-CM testing.
+
+This is for VFs kept on the Proxmox host. Do not use it for VFs assigned to VMs.
+When PERSIST_INTERFACES=1, the VF IPs are written to /etc/network/interfaces so
+Proxmox can display them as managed network config.
+
+Options:
+  -h, --help              Show this help.
+
+Environment:
+  PF=...                  PF netdev. Default: enp23s0.
+  NUM_VFS=...             Number of host-owned VFs to configure. Default: 12.
+  VF_PREFIX=...           VF netdev prefix. Default: enp23s0v.
+  VF_IPS=...              Comma-separated CIDRs, one per VF.
+  VF_IP_BASE=...          IPv4 base without final octet, e.g. 192.168.20.
+  VF_IP_CIDR=...          CIDR prefix for VF_IP_BASE generated IPs. Default: 24.
+  VF_ROUTE_CIDR=...       Optional source-route CIDR, e.g. 192.168.20.0/24.
+  TABLE_BASE=...          First policy routing table number. Default: 160.
+  MTU=...                 VF MTU. Default: 9000.
+  PERSIST_INTERFACES=0|1  Write Proxmox ifupdown config. Default: 1.
+  APPLY_RUNTIME=0|1       Apply addresses immediately. Default: 1.
+
+Examples:
+  VF_IP_BASE=192.168.20. NUM_VFS=12 VF_ROUTE_CIDR=192.168.20.0/24 ./$0
+  VF_IPS=192.168.20.160/24,192.168.20.161/24 NUM_VFS=2 ./$0
+USAGE
+}
+
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+	-h|--help) usage; exit 0 ;;
+	*) echo "error: unknown option: $1" >&2; usage >&2; exit 2 ;;
+	esac
+	shift
+done
+
+run() { echo "+ $*"; "$@"; }
+need_root() { [ "$(id -u)" -eq 0 ] || { echo "error: this script must run as root" >&2; exit 1; }; }
+
+ip_for_vf() {
+	local idx="$1" ip
+	if [ -n "$VF_IPS" ]; then
+		ip="$(printf '%s\n' "$VF_IPS" | tr ',' '\n' | awk -v n="$((idx + 1))" 'NR == n {gsub(/^[ \t]+|[ \t]+$/, ""); print; exit}')"
+		[ -n "$ip" ] || return 1
+		printf '%s\n' "$ip"
+		return 0
+	fi
+	[ -n "$VF_IP_BASE" ] || return 1
+	printf '%s%d/%s\n' "$VF_IP_BASE" "$((160 + idx))" "$VF_IP_CIDR"
+}
+
+ip_addr_only() {
+	printf '%s\n' "$1" | sed 's,/.*,,'
+}
+
+write_interfaces_config() {
+	local file="$1" begin="# cx3pro-inbox-rocev2 vf-test begin" end="# cx3pro-inbox-rocev2 vf-test end" tmp i iface ipaddr addr table
+	tmp="$(mktemp)"
+	cp "$file" "${file}.bak.$(date +%Y%m%d-%H%M%S)" 2>/dev/null || true
+	[ -f "$file" ] && sed "/^${begin}$/,/^${end}$/d" "$file" >"$tmp" || : >"$tmp"
+
+	for i in $(seq 0 $((NUM_VFS - 1))); do
+		iface="${VF_PREFIX}${i}"
+		if grep -Eq "^[[:space:]]*iface[[:space:]]+${iface}[[:space:]]" "$tmp"; then
+			echo "error: ${iface} already has an unmanaged stanza in ${file}" >&2
+			rm -f "$tmp"
+			exit 1
+		fi
+	done
+
+	cat "$tmp" >"$file"
+	rm -f "$tmp"
+	{
+		echo
+		echo "$begin"
+		for i in $(seq 0 $((NUM_VFS - 1))); do
+			iface="${VF_PREFIX}${i}"
+			ipaddr="$(ip_for_vf "$i")"
+			addr="$(ip_addr_only "$ipaddr")"
+			table="$((TABLE_BASE + i))"
+			echo "auto ${iface}"
+			echo "iface ${iface} inet static"
+			echo "    address ${ipaddr}"
+			echo "    mtu ${MTU}"
+			if [ -n "$VF_ROUTE_CIDR" ]; then
+				echo "    post-up ip route replace ${VF_ROUTE_CIDR} dev ${iface} src ${addr} table ${table}"
+				echo "    post-up ip rule del from ${addr}/32 table ${table} 2>/dev/null || true"
+				echo "    post-up ip rule add from ${addr}/32 table ${table} priority ${table}"
+				echo "    pre-down ip rule del from ${addr}/32 table ${table} 2>/dev/null || true"
+				echo "    pre-down ip route flush table ${table} 2>/dev/null || true"
+			fi
+			echo
+		done
+		echo "$end"
+	} >>"$file"
+}
+
+apply_runtime_config() {
+	local i iface ipaddr addr table
+	for i in $(seq 0 $((NUM_VFS - 1))); do
+		iface="${VF_PREFIX}${i}"
+		ipaddr="$(ip_for_vf "$i")"
+		addr="$(ip_addr_only "$ipaddr")"
+		table="$((TABLE_BASE + i))"
+		ip link show "$iface" >/dev/null 2>&1 || { echo "error: missing VF netdev: $iface" >&2; exit 1; }
+		run ip link set dev "$iface" mtu "$MTU" up
+		run ip addr replace "$ipaddr" dev "$iface"
+		if [ -n "$VF_ROUTE_CIDR" ]; then
+			ip rule del from "$addr/32" table "$table" 2>/dev/null || true
+			ip route flush table "$table" 2>/dev/null || true
+			run ip route add "$VF_ROUTE_CIDR" dev "$iface" src "$addr" table "$table"
+			run ip rule add from "$addr/32" table "$table" priority "$table"
+		fi
+	done
+	ip route flush cache 2>/dev/null || true
+}
+
+need_root
+[ -n "$VF_IPS" ] || [ -n "$VF_IP_BASE" ] || { echo "error: set VF_IPS or VF_IP_BASE" >&2; exit 1; }
+
+if [ "$PERSIST_INTERFACES" = "1" ]; then
+	write_interfaces_config "$INTERFACES_FILE"
+fi
+
+if [ "$APPLY_RUNTIME" = "1" ]; then
+	apply_runtime_config
+fi
+
+for i in $(seq 0 $((NUM_VFS - 1))); do
+	ip -br addr show dev "${VF_PREFIX}${i}" || true
+done
