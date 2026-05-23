@@ -6,6 +6,8 @@ VLAN10_ID="${VLAN10_ID:-10}"
 VLAN20_ID="${VLAN20_ID:-20}"
 VLAN10_IP="${VLAN10_IP:-}"
 VLAN20_IP="${VLAN20_IP:-}"
+VLAN20_ROUTE_CIDR="${VLAN20_ROUTE_CIDR:-}"
+VLAN20_ROUTE_TABLE="${VLAN20_ROUTE_TABLE:-159}"
 MTU="${MTU:-9000}"
 VLAN_IPV6="${VLAN_IPV6:-0}"
 INSTALL_PACKAGES="${INSTALL_PACKAGES:-0}"
@@ -29,6 +31,8 @@ Environment:
   VLAN20_ID=...         Second VLAN ID. Default: 20.
   VLAN10_IP=...         Optional address for VLAN10 interface.
   VLAN20_IP=...         Optional address for VLAN20 interface.
+  VLAN20_ROUTE_CIDR=... Optional source-route CIDR for VLAN20, e.g. 192.168.20.0/24.
+  VLAN20_ROUTE_TABLE=... Policy-routing table for VLAN20. Default: 159.
   MTU=...               MTU for PF and VLAN interfaces. Default: 9000.
   VLAN_IPV6=0|1       Enable IPv6 on managed VLAN interfaces. Default: 0.
   PERSIST_INTERFACES=0|1 Write Proxmox ifupdown config. Default: 1.
@@ -120,6 +124,13 @@ write_interfaces_config() {
 		echo "    pre-up ip link set dev ${PARENT_IF} mtu ${MTU}"
 		echo "    mtu ${MTU}"
 		echo "    vlan-raw-device ${PARENT_IF}"
+		if [ -n "$VLAN20_ROUTE_CIDR" ]; then
+			echo "    post-up ip route replace ${VLAN20_ROUTE_CIDR} dev ${VLAN20_IF} src ${VLAN20_IP%/*} table ${VLAN20_ROUTE_TABLE}"
+			echo "    post-up ip rule del from ${VLAN20_IP%/*}/32 table ${VLAN20_ROUTE_TABLE} 2>/dev/null || true"
+			echo "    post-up ip rule add from ${VLAN20_IP%/*}/32 table ${VLAN20_ROUTE_TABLE} priority ${VLAN20_ROUTE_TABLE}"
+			echo "    pre-down ip rule del from ${VLAN20_IP%/*}/32 table ${VLAN20_ROUTE_TABLE} 2>/dev/null || true"
+			echo "    pre-down ip route flush table ${VLAN20_ROUTE_TABLE} 2>/dev/null || true"
+		fi
 		echo "$end"
 	} >>"$file"
 }
@@ -129,6 +140,7 @@ case "$VLAN_IPV6" in
 0|1) ;;
 *) echo "error: VLAN_IPV6 must be 0 or 1" >&2; exit 1 ;;
 esac
+[ -z "$VLAN20_ROUTE_CIDR" ] || [ -n "$VLAN20_IP" ] || { echo "error: VLAN20_ROUTE_CIDR requires VLAN20_IP" >&2; exit 1; }
 
 echo "=== CX3 Pro inbox RoCEv2 setup ==="
 echo "host=$(hostname)"
@@ -189,6 +201,13 @@ done
 
 [ -z "$VLAN10_IP" ] || run ip addr replace "$VLAN10_IP" dev "$VLAN10_IF"
 [ -z "$VLAN20_IP" ] || run ip addr replace "$VLAN20_IP" dev "$VLAN20_IF"
+if [ -n "$VLAN20_ROUTE_CIDR" ]; then
+	addr="${VLAN20_IP%/*}"
+	ip rule del from "$addr/32" table "$VLAN20_ROUTE_TABLE" 2>/dev/null || true
+	ip route flush table "$VLAN20_ROUTE_TABLE" 2>/dev/null || true
+	run ip route replace "$VLAN20_ROUTE_CIDR" dev "$VLAN20_IF" src "$addr" table "$VLAN20_ROUTE_TABLE"
+	run ip rule add from "$addr/32" table "$VLAN20_ROUTE_TABLE" priority "$VLAN20_ROUTE_TABLE"
+fi
 
 echo
 echo "RDMA device: $RDMA_DEV"

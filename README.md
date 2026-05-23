@@ -58,8 +58,8 @@ PF=enp23s0 NUM_VFS=12 VF_VLAN=20 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20
 
 # Optional: host-owned VF test IPs visible in the Proxmox network GUI.
 # Do not use this for VFs assigned to VMs. Review first, then apply.
-NUM_VFS=12 VF_IP_BASE=192.168.20. VF_ROUTE_CIDR=192.168.20.0/24 PF_SOURCE_IF=enp23s0.20 PF_SOURCE_IP=192.168.20.56 ./vf_roce_test_ifaces --dry-run
-NUM_VFS=12 VF_IP_BASE=192.168.20. VF_ROUTE_CIDR=192.168.20.0/24 PF_SOURCE_IF=enp23s0.20 PF_SOURCE_IP=192.168.20.56 ./vf_roce_test_ifaces
+NUM_VFS=12 VF_IP_BASE=192.168.20. VF_ROUTE_CIDR=192.168.20.0/24 ./vf_roce_test_ifaces --dry-run
+NUM_VFS=12 VF_IP_BASE=192.168.20. VF_ROUTE_CIDR=192.168.20.0/24 ./vf_roce_test_ifaces
 NUM_VFS=12 ./test_vf_rdmacm --list
 CLIENT_SSH=root@192.168.1.50 CLIENT_DEV=rocep23s0 NUM_VFS=12 ./test_vf_rdmacm
 ```
@@ -93,14 +93,14 @@ cd /root/CX3Pro-inbox-driver-patch
 ./install-pve7.sh --no-apt
 PF=enp23s0 NUM_VFS=12 VF_VLAN=20 ./sriov_setup
 reboot
-VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./rocesetup
+VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 VLAN20_ROUTE_CIDR=192.168.20.0/24 ./rocesetup
 # VLAN IPv6 is disabled by default here so the eight PF GID entries are used for the required IPv4 RoCE endpoints.
 PF=enp23s0 NUM_VFS=12 VF_VLAN=20 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./verify-pve7.sh
 
 # Optional host-owned VF addresses for RDMA-CM testing, visible in Proxmox.
 # Skip this for VFs assigned to VMs. Review first, then apply.
-NUM_VFS=12 VF_IP_BASE=192.168.20. VF_ROUTE_CIDR=192.168.20.0/24 PF_SOURCE_IF=enp23s0.20 PF_SOURCE_IP=192.168.20.56 ./vf_roce_test_ifaces --dry-run
-NUM_VFS=12 VF_IP_BASE=192.168.20. VF_ROUTE_CIDR=192.168.20.0/24 PF_SOURCE_IF=enp23s0.20 PF_SOURCE_IP=192.168.20.56 ./vf_roce_test_ifaces
+NUM_VFS=12 VF_IP_BASE=192.168.20. VF_ROUTE_CIDR=192.168.20.0/24 ./vf_roce_test_ifaces --dry-run
+NUM_VFS=12 VF_IP_BASE=192.168.20. VF_ROUTE_CIDR=192.168.20.0/24 ./vf_roce_test_ifaces
 NUM_VFS=12 ./test_vf_rdmacm --list
 CLIENT_SSH=root@192.168.1.50 CLIENT_DEV=rocep23s0 NUM_VFS=12 ./test_vf_rdmacm
 ```

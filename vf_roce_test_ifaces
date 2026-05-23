@@ -10,9 +10,6 @@ VF_IP_START="${VF_IP_START:-160}"
 VF_IP_CIDR="${VF_IP_CIDR:-24}"
 VF_ROUTE_CIDR="${VF_ROUTE_CIDR:-}"
 TABLE_BASE="${TABLE_BASE:-160}"
-PF_SOURCE_IF="${PF_SOURCE_IF:-}"
-PF_SOURCE_IP="${PF_SOURCE_IP:-}"
-PF_TABLE="${PF_TABLE:-$((TABLE_BASE - 1))}"
 MTU="${MTU:-9000}"
 PERSIST_INTERFACES="${PERSIST_INTERFACES:-1}"
 APPLY_RUNTIME="${APPLY_RUNTIME:-1}"
@@ -46,9 +43,6 @@ Environment:
   VF_IP_START=...         First generated final octet. Default: 160.
   VF_IP_CIDR=...          CIDR prefix for VF_IP_BASE generated IPs. Default: 24.
   VF_ROUTE_CIDR=...       Optional source-route CIDR, e.g. 192.168.20.0/24.
-  PF_SOURCE_IF=...        Optional PF VLAN netdev to retain source routing during VF tests.
-  PF_SOURCE_IP=...        Optional PF IPv4 source address paired with PF_SOURCE_IF.
-  PF_TABLE=...           PF source-routing table number. Default: TABLE_BASE - 1.
   TABLE_BASE=...          First policy routing table number. Default: 160.
   MTU=...                 VF MTU. Default: 9000.
   PERSIST_INTERFACES=0|1  Write Proxmox ifupdown config. Default: 1.
@@ -117,8 +111,7 @@ ip_addr_only() {
 }
 
 render_interfaces_block() {
-	local begin="# cx3pro-inbox-rocev2 vf-test begin" end="# cx3pro-inbox-rocev2 vf-test end" i iface ipaddr addr table wrote=0 pf_route_written=0 pf_addr
-	pf_addr="$(ip_addr_only "$PF_SOURCE_IP")"
+	local begin="# cx3pro-inbox-rocev2 vf-test begin" end="# cx3pro-inbox-rocev2 vf-test end" i iface ipaddr addr table wrote=0
 	echo "$begin"
 	for i in $(seq 0 $((NUM_VFS - 1))); do
 		if ! vf_is_host_owned "$i"; then
@@ -140,14 +133,6 @@ render_interfaces_block() {
 			echo "    post-up ip rule add from ${addr}/32 table ${table} priority ${table}"
 			echo "    pre-down ip rule del from ${addr}/32 table ${table} 2>/dev/null || true"
 			echo "    pre-down ip route flush table ${table} 2>/dev/null || true"
-			if [ -n "$PF_SOURCE_IF" ] && [ "$pf_route_written" = "0" ]; then
-				echo "    post-up ip route replace ${VF_ROUTE_CIDR} dev ${PF_SOURCE_IF} src ${pf_addr} table ${PF_TABLE}"
-				echo "    post-up ip rule del from ${pf_addr}/32 table ${PF_TABLE} 2>/dev/null || true"
-				echo "    post-up ip rule add from ${pf_addr}/32 table ${PF_TABLE} priority ${PF_TABLE}"
-				echo "    pre-down ip rule del from ${pf_addr}/32 table ${PF_TABLE} 2>/dev/null || true"
-				echo "    pre-down ip route flush table ${PF_TABLE} 2>/dev/null || true"
-				pf_route_written=1
-			fi
 		fi
 		echo
 	done
@@ -212,9 +197,6 @@ apply_runtime_config() {
 }
 
 [ -n "$VF_IPS" ] || [ -n "$VF_IP_BASE" ] || { echo "error: set VF_IPS or VF_IP_BASE" >&2; exit 1; }
-if [ -n "$PF_SOURCE_IF" ] || [ -n "$PF_SOURCE_IP" ]; then
-	[ -n "$PF_SOURCE_IF" ] && [ -n "$PF_SOURCE_IP" ] && [ -n "$VF_ROUTE_CIDR" ] || { echo "error: PF_SOURCE_IF and PF_SOURCE_IP require VF_ROUTE_CIDR" >&2; exit 1; }
-fi
 
 if [ "$DRY_RUN" = "1" ]; then
 	render_interfaces_block
