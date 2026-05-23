@@ -131,6 +131,23 @@ Validated:
 
 - After reboot into kernel `7.0.2-6-pve`, the compact VF RoCEv2 GID layout was validated with `NUM_VFS=12`, `MLX4_ROCE_PF_GIDS=8`, and two RoCEv2 GIDs per host-owned VF. `verify-pve7.sh` passed with stable VF MACs, VLAN 20 on all twelve VFs, PF VLAN IPs `192.168.10.56/24` and `192.168.20.56/24`, module resolution from `updates/cx3pro-inbox-rocev2`, and no bounded kernel warning matches. Sequential cross-host RDMA-CM RoCEv2 `ib_write_bw` from pvs1 `192.168.20.50` to pvs3 VF IPs `192.168.20.160-171` passed for all twelve VFs using local VF GID index `1`; results were 49.41-50.61 Gbit/sec average with IPv4-mapped RoCEv2 GIDs. The test used coupled listener/client orchestration with a three-second listener warm-up so approval delay could not invalidate the RDMA-CM run. A post-test pvs3 kernel scan for `BUG`, `Oops`, `WARNING`, `Call Trace`, `Unknown symbol`, `disagrees`, `__warn`, `Bad wc`, `Completion with error`, `Failed status`, and `vhcr command:0x3a` returned no entries.
 
+## Fresh rollback validation, 2026-05-23
+
+Validated from `rpool/ROOT/pve-1@fresh-install` booting kernel `7.0.2-6-pve` with repository commit `7e22b3a`:
+
+- `cx3pro-install` confirmed ConnectX-3 Pro firmware `2.42.5000` without flashing, and the full-install dependency path was updated so the documented later `install-pve7.sh --no-apt` build has `flex`, `bison`, and related kernel build tools available.
+- `install-pve7.sh` rebuilt and installed patched inbox `mlx4_core`, `mlx4_en`, and `mlx4_ib` modules with matching vermagic and symbol CRC checks; after reboot all resolve from `updates/cx3pro-inbox-rocev2`.
+- `rocesetup` now persists PF MTU 9000, VLAN20 source routing, and disables IPv6 only on its managed VLAN subinterfaces by default. This prevents duplicate unused VLAN link-local GID registration that previously produced `MLX4_CMD_SET_PORT` (`vhcr command:0xc`) status `-22` and `add_roce_gid` errors at boot.
+- After the corrected reboot, `verify-pve7.sh` passes with active PF/VF RDMA links, stable MACs and VLAN 20 on all 12 VFs, persistent PF VLAN addresses, firmware `2.42.5000`, and no `vhcr`, GID-add, mlx4 warning, symbol, or call-trace matches.
+- PF inbound RoCEv2 RDMA-CM `ib_write_bw` from pvs1 to `192.168.20.56` passed at `49.63 Gbit/sec`. VF0 passed individually in both listener forms at `49.57-49.61 Gbit/sec`; a longer inbound run to VF4 passed at `50.09 Gbit/sec`.
+- All twelve pvs3 VFs successfully initiated reverse-direction RDMA-CM connections to pvs1 after reboot, and the post-traffic pvs3 Mellanox/GID/VHCR scan returned no entries.
+
+Unresolved in this validation run:
+
+- A sequential pvs1-initiated sweep succeeded for VF0, then later VF targets reported an RDMA-CM client event failure; individual retry of VF1 passed. This requires additional isolation on pvs1 before claiming repeatable inbound multi-VF coverage for the corrected boot.
+- Reverse-direction bandwidth was inconsistent across PF/VFs: long runs observed `16.51 Gbit/sec` on the PF, `18.93 Gbit/sec` on VF4, and `50.31 Gbit/sec` on VF3, while inbound VF4 reached `50.09 Gbit/sec`. Determine whether switching/lossless Ethernet configuration or host-side behavior explains this before accepting bidirectional performance.
+- The host logs recurring corrected APEI PCIe errors for NVMe endpoint vendor `15b7`, device `5002`, separate from the Mellanox `15b3:1007` adapter.
+
 Not yet repeated after the latest clean inbox-patch boot:
 
 - Cross-host VF `ib_write_bw` from a VM-assigned passthrough VF.

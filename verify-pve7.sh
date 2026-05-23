@@ -241,7 +241,7 @@ if [ "$CHECK_VLAN_IPS" = "1" ]; then
 fi
 
 section "kernel warning scan"
-if journalctl -k -b -g 'BUG|Oops|WARNING|Call Trace|Unknown symbol|disagrees|__warn|fortify|objtool|vhcr command:' --no-pager | grep -v '^-- No entries --'; then
+if journalctl -k -b -g 'BUG|Oops|WARNING|Call Trace|Unknown symbol|disagrees|__warn|fortify|objtool|vhcr command:|add_roce_gid|__ib_cache_gid_add' --no-pager | grep -v '^-- No entries --'; then
 	fail "kernel warning scan found entries"
 else
 	pass "kernel warning scan has no matching entries"
