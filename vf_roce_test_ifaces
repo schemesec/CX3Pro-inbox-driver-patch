@@ -166,14 +166,6 @@ write_interfaces_config() {
 
 apply_runtime_config() {
 	local i iface ipaddr addr table
-	if [ -n "$PF_SOURCE_IF" ]; then
-		addr="$(ip_addr_only "$PF_SOURCE_IP")"
-		ip link show "$PF_SOURCE_IF" >/dev/null 2>&1 || { echo "error: missing PF source netdev: $PF_SOURCE_IF" >&2; exit 1; }
-		ip rule del from "$addr/32" table "$PF_TABLE" 2>/dev/null || true
-		ip route flush table "$PF_TABLE" 2>/dev/null || true
-		run ip route add "$VF_ROUTE_CIDR" dev "$PF_SOURCE_IF" src "$addr" table "$PF_TABLE"
-		run ip rule add from "$addr/32" table "$PF_TABLE" priority "$PF_TABLE"
-	fi
 	for i in $(seq 0 $((NUM_VFS - 1))); do
 		if ! vf_is_host_owned "$i"; then
 			echo "skip ${VF_PREFIX}${i}: bound to vfio-pci passthrough"
