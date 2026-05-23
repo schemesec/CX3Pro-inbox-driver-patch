@@ -108,7 +108,7 @@ write_interfaces_config() {
 		echo "auto ${VLAN10_IF}"
 		echo "iface ${VLAN10_IF} inet manual"
 		[ -z "$VLAN10_IP" ] || echo "    address ${VLAN10_IP}"
-		[ "$VLAN_IPV6" = "1" ] || echo "    pre-up sysctl -q -w net.ipv6.conf.${VLAN10_IF}.disable_ipv6=1"
+		[ "$VLAN_IPV6" = "1" ] || echo "    pre-up sh -c 'echo 1 > /proc/sys/net/ipv6/conf/${VLAN10_IF}/disable_ipv6'"
 		echo "    pre-up ip link set dev ${PARENT_IF} mtu ${MTU}"
 		echo "    mtu ${MTU}"
 		echo "    vlan-raw-device ${PARENT_IF}"
@@ -116,7 +116,7 @@ write_interfaces_config() {
 		echo "auto ${VLAN20_IF}"
 		echo "iface ${VLAN20_IF} inet manual"
 		[ -z "$VLAN20_IP" ] || echo "    address ${VLAN20_IP}"
-		[ "$VLAN_IPV6" = "1" ] || echo "    pre-up sysctl -q -w net.ipv6.conf.${VLAN20_IF}.disable_ipv6=1"
+		[ "$VLAN_IPV6" = "1" ] || echo "    pre-up sh -c 'echo 1 > /proc/sys/net/ipv6/conf/${VLAN20_IF}/disable_ipv6'"
 		echo "    pre-up ip link set dev ${PARENT_IF} mtu ${MTU}"
 		echo "    mtu ${MTU}"
 		echo "    vlan-raw-device ${PARENT_IF}"
@@ -177,7 +177,8 @@ ip link show "$VLAN20_IF" >/dev/null 2>&1 || run ip link add link "$PARENT_IF" n
 
 if [ "$VLAN_IPV6" = "0" ]; then
 	for iface in "$VLAN10_IF" "$VLAN20_IF"; do
-		run sysctl -q -w "net.ipv6.conf.${iface}.disable_ipv6=1"
+		echo "+ disable IPv6 on $iface"
+		echo 1 > "/proc/sys/net/ipv6/conf/${iface}/disable_ipv6"
 	done
 fi
 
