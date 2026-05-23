@@ -7,6 +7,7 @@ VLAN20_ID="${VLAN20_ID:-20}"
 VLAN10_IP="${VLAN10_IP:-}"
 VLAN20_IP="${VLAN20_IP:-}"
 MTU="${MTU:-9000}"
+VLAN_IPV6="${VLAN_IPV6:-0}"
 INSTALL_PACKAGES="${INSTALL_PACKAGES:-0}"
 PERSIST_INTERFACES="${PERSIST_INTERFACES:-1}"
 INTERFACES_FILE="${INTERFACES_FILE:-/etc/network/interfaces}"
@@ -29,6 +30,7 @@ Environment:
   VLAN10_IP=...         Optional address for VLAN10 interface.
   VLAN20_IP=...         Optional address for VLAN20 interface.
   MTU=...               MTU for PF and VLAN interfaces. Default: 9000.
+  VLAN_IPV6=0|1       Enable IPv6 on managed VLAN interfaces. Default: 0.
   PERSIST_INTERFACES=0|1 Write Proxmox ifupdown config. Default: 1.
 EOF
 }
@@ -106,6 +108,7 @@ write_interfaces_config() {
 		echo "auto ${VLAN10_IF}"
 		echo "iface ${VLAN10_IF} inet manual"
 		[ -z "$VLAN10_IP" ] || echo "    address ${VLAN10_IP}"
+		[ "$VLAN_IPV6" = "1" ] || echo "    pre-up sysctl -q -w net.ipv6.conf.${VLAN10_IF}.disable_ipv6=1"
 		echo "    pre-up ip link set dev ${PARENT_IF} mtu ${MTU}"
 		echo "    mtu ${MTU}"
 		echo "    vlan-raw-device ${PARENT_IF}"
@@ -113,6 +116,7 @@ write_interfaces_config() {
 		echo "auto ${VLAN20_IF}"
 		echo "iface ${VLAN20_IF} inet manual"
 		[ -z "$VLAN20_IP" ] || echo "    address ${VLAN20_IP}"
+		[ "$VLAN_IPV6" = "1" ] || echo "    pre-up sysctl -q -w net.ipv6.conf.${VLAN20_IF}.disable_ipv6=1"
 		echo "    pre-up ip link set dev ${PARENT_IF} mtu ${MTU}"
 		echo "    mtu ${MTU}"
 		echo "    vlan-raw-device ${PARENT_IF}"
@@ -121,6 +125,10 @@ write_interfaces_config() {
 }
 
 need_root
+case "$VLAN_IPV6" in
+0|1) ;;
+*) echo "error: VLAN_IPV6 must be 0 or 1" >&2; exit 1 ;;
+esac
 
 echo "=== CX3 Pro inbox RoCEv2 setup ==="
 echo "host=$(hostname)"
@@ -166,6 +174,12 @@ VLAN20_IF="${PARENT_IF}.${VLAN20_ID}"
 
 ip link show "$VLAN10_IF" >/dev/null 2>&1 || run ip link add link "$PARENT_IF" name "$VLAN10_IF" type vlan id "$VLAN10_ID"
 ip link show "$VLAN20_IF" >/dev/null 2>&1 || run ip link add link "$PARENT_IF" name "$VLAN20_IF" type vlan id "$VLAN20_ID"
+
+if [ "$VLAN_IPV6" = "0" ]; then
+	for iface in "$VLAN10_IF" "$VLAN20_IF"; do
+		run sysctl -q -w "net.ipv6.conf.${iface}.disable_ipv6=1"
+	done
+fi
 
 for iface in "$VLAN10_IF" "$VLAN20_IF"; do
 	run ip link set "$iface" up

@@ -94,6 +94,7 @@ cd /root/CX3Pro-inbox-driver-patch
 PF=enp23s0 NUM_VFS=12 VF_VLAN=20 ./sriov_setup
 reboot
 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./rocesetup
+# VLAN IPv6 is disabled by default here so the eight PF GID entries are used for the required IPv4 RoCE endpoints.
 PF=enp23s0 NUM_VFS=12 VF_VLAN=20 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./verify-pve7.sh
 
 # Optional host-owned VF addresses for RDMA-CM testing, visible in Proxmox.
