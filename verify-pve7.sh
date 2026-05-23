@@ -113,7 +113,7 @@ check_roce_v2_gid_for_netdev() {
 wait_for_pf_rdma_link() {
 	local elapsed=0
 	while [ "$elapsed" -lt "$LINK_WAIT_SECS" ]; do
-		if rdma link show 2>/dev/null | grep -Eq "state ACTIVE .*netdev ${PF}([[:space:]]|$)"; then
+		if rdma link show 2>/dev/null | grep -E "state ACTIVE .*netdev ${PF}([[:space:]]|$)" >/dev/null; then
 			return 0
 		fi
 		sleep 1
