@@ -6,6 +6,7 @@ NUM_VFS="${NUM_VFS:-12}"
 VF_PREFIX="${VF_PREFIX:-enp23s0v}"
 VF_IPS="${VF_IPS:-}"
 VF_IP_BASE="${VF_IP_BASE:-}"
+VF_IP_START="${VF_IP_START:-160}"
 VF_IP_CIDR="${VF_IP_CIDR:-24}"
 VF_ROUTE_CIDR="${VF_ROUTE_CIDR:-}"
 TABLE_BASE="${TABLE_BASE:-160}"
@@ -13,6 +14,9 @@ MTU="${MTU:-9000}"
 PERSIST_INTERFACES="${PERSIST_INTERFACES:-1}"
 APPLY_RUNTIME="${APPLY_RUNTIME:-1}"
 INTERFACES_FILE="${INTERFACES_FILE:-/etc/network/interfaces}"
+DRY_RUN="${DRY_RUN:-0}"
+IFRELOAD="${IFRELOAD:-0}"
+SKIP_VFIO="${SKIP_VFIO:-1}"
 
 usage() {
 	cat <<USAGE
@@ -20,34 +24,43 @@ Usage: $0 [options]
 
 Configure host-owned CX3 Pro VF test IPs for RoCEv2/RDMA-CM testing.
 
-This is for VFs kept on the Proxmox host. Do not use it for VFs assigned to VMs.
-When PERSIST_INTERFACES=1, the VF IPs are written to /etc/network/interfaces so
-Proxmox can display them as managed network config.
+This is for VFs kept on the Proxmox host. VFs bound to vfio-pci are skipped by
+default because their IP configuration belongs inside the VM. When
+PERSIST_INTERFACES=1, the generated stanzas are written to /etc/network/interfaces
+inside a marked block so Proxmox can display them as managed config.
 
 Options:
+  --dry-run               Print generated interface block and do not write/apply.
+  --ifreload              Run ifreload -a after writing /etc/network/interfaces.
   -h, --help              Show this help.
 
 Environment:
   PF=...                  PF netdev. Default: enp23s0.
-  NUM_VFS=...             Number of host-owned VFs to configure. Default: 12.
+  NUM_VFS=...             Number of VFs to consider. Default: 12.
   VF_PREFIX=...           VF netdev prefix. Default: enp23s0v.
   VF_IPS=...              Comma-separated CIDRs, one per VF.
   VF_IP_BASE=...          IPv4 base without final octet, e.g. 192.168.20.
+  VF_IP_START=...         First generated final octet. Default: 160.
   VF_IP_CIDR=...          CIDR prefix for VF_IP_BASE generated IPs. Default: 24.
   VF_ROUTE_CIDR=...       Optional source-route CIDR, e.g. 192.168.20.0/24.
   TABLE_BASE=...          First policy routing table number. Default: 160.
   MTU=...                 VF MTU. Default: 9000.
   PERSIST_INTERFACES=0|1  Write Proxmox ifupdown config. Default: 1.
   APPLY_RUNTIME=0|1       Apply addresses immediately. Default: 1.
+  DRY_RUN=0|1             Print config only. Default: 0.
+  IFRELOAD=0|1            Run ifreload -a after persistent write. Default: 0.
+  SKIP_VFIO=0|1           Skip VFs bound to vfio-pci. Default: 1.
 
 Examples:
-  VF_IP_BASE=192.168.20. NUM_VFS=12 VF_ROUTE_CIDR=192.168.20.0/24 ./$0
+  VF_IP_BASE=192.168.20. NUM_VFS=12 VF_ROUTE_CIDR=192.168.20.0/24 ./$0 --dry-run
   VF_IPS=192.168.20.160/24,192.168.20.161/24 NUM_VFS=2 ./$0
 USAGE
 }
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in
+	--dry-run) DRY_RUN=1; PERSIST_INTERFACES=0; APPLY_RUNTIME=0 ;;
+	--ifreload) IFRELOAD=1 ;;
 	-h|--help) usage; exit 0 ;;
 	*) echo "error: unknown option: $1" >&2; usage >&2; exit 2 ;;
 	esac
@@ -56,6 +69,30 @@ done
 
 run() { echo "+ $*"; "$@"; }
 need_root() { [ "$(id -u)" -eq 0 ] || { echo "error: this script must run as root" >&2; exit 1; }; }
+
+vf_bdf() {
+	local idx="$1" vf_link
+	vf_link="/sys/class/net/${PF}/device/virtfn${idx}"
+	[ -e "$vf_link" ] || return 1
+	basename "$(readlink -f "$vf_link")"
+}
+
+pci_driver() {
+	local bdf="$1" driver_link
+	driver_link="/sys/bus/pci/devices/${bdf}/driver"
+	[ -e "$driver_link" ] || return 1
+	basename "$(readlink -f "$driver_link")"
+}
+
+vf_is_host_owned() {
+	local idx="$1" bdf driver
+	[ "$SKIP_VFIO" = "1" ] || return 0
+	bdf="$(vf_bdf "$idx" 2>/dev/null || true)"
+	[ -n "$bdf" ] || return 0
+	driver="$(pci_driver "$bdf" 2>/dev/null || true)"
+	[ "$driver" = "vfio-pci" ] && return 1
+	return 0
+}
 
 ip_for_vf() {
 	local idx="$1" ip
@@ -66,58 +103,74 @@ ip_for_vf() {
 		return 0
 	fi
 	[ -n "$VF_IP_BASE" ] || return 1
-	printf '%s%d/%s\n' "$VF_IP_BASE" "$((160 + idx))" "$VF_IP_CIDR"
+	printf '%s%d/%s\n' "$VF_IP_BASE" "$((VF_IP_START + idx))" "$VF_IP_CIDR"
 }
 
 ip_addr_only() {
 	printf '%s\n' "$1" | sed 's,/.*,,'
 }
 
+render_interfaces_block() {
+	local begin="# cx3pro-inbox-rocev2 vf-test begin" end="# cx3pro-inbox-rocev2 vf-test end" i iface ipaddr addr table wrote=0
+	echo "$begin"
+	for i in $(seq 0 $((NUM_VFS - 1))); do
+		if ! vf_is_host_owned "$i"; then
+			echo "# skipped ${VF_PREFIX}${i}: bound to vfio-pci passthrough"
+			continue
+		fi
+		iface="${VF_PREFIX}${i}"
+		ipaddr="$(ip_for_vf "$i")"
+		addr="$(ip_addr_only "$ipaddr")"
+		table="$((TABLE_BASE + i))"
+		wrote=1
+		echo "auto ${iface}"
+		echo "iface ${iface} inet static"
+		echo "    address ${ipaddr}"
+		echo "    mtu ${MTU}"
+		if [ -n "$VF_ROUTE_CIDR" ]; then
+			echo "    post-up ip route replace ${VF_ROUTE_CIDR} dev ${iface} src ${addr} table ${table}"
+			echo "    post-up ip rule del from ${addr}/32 table ${table} 2>/dev/null || true"
+			echo "    post-up ip rule add from ${addr}/32 table ${table} priority ${table}"
+			echo "    pre-down ip rule del from ${addr}/32 table ${table} 2>/dev/null || true"
+			echo "    pre-down ip route flush table ${table} 2>/dev/null || true"
+		fi
+		echo
+	done
+	[ "$wrote" = "1" ] || echo "# no host-owned VFs selected"
+	echo "$end"
+}
+
 write_interfaces_config() {
-	local file="$1" begin="# cx3pro-inbox-rocev2 vf-test begin" end="# cx3pro-inbox-rocev2 vf-test end" tmp i iface ipaddr addr table
+	local file="$1" begin="# cx3pro-inbox-rocev2 vf-test begin" end="# cx3pro-inbox-rocev2 vf-test end" tmp block i iface
 	tmp="$(mktemp)"
+	block="$(mktemp)"
+	render_interfaces_block >"$block"
 	cp "$file" "${file}.bak.$(date +%Y%m%d-%H%M%S)" 2>/dev/null || true
 	[ -f "$file" ] && sed "/^${begin}$/,/^${end}$/d" "$file" >"$tmp" || : >"$tmp"
 
 	for i in $(seq 0 $((NUM_VFS - 1))); do
+		vf_is_host_owned "$i" || continue
 		iface="${VF_PREFIX}${i}"
 		if grep -Eq "^[[:space:]]*iface[[:space:]]+${iface}[[:space:]]" "$tmp"; then
 			echo "error: ${iface} already has an unmanaged stanza in ${file}" >&2
-			rm -f "$tmp"
+			rm -f "$tmp" "$block"
 			exit 1
 		fi
 	done
 
 	cat "$tmp" >"$file"
-	rm -f "$tmp"
-	{
-		echo
-		echo "$begin"
-		for i in $(seq 0 $((NUM_VFS - 1))); do
-			iface="${VF_PREFIX}${i}"
-			ipaddr="$(ip_for_vf "$i")"
-			addr="$(ip_addr_only "$ipaddr")"
-			table="$((TABLE_BASE + i))"
-			echo "auto ${iface}"
-			echo "iface ${iface} inet static"
-			echo "    address ${ipaddr}"
-			echo "    mtu ${MTU}"
-			if [ -n "$VF_ROUTE_CIDR" ]; then
-				echo "    post-up ip route replace ${VF_ROUTE_CIDR} dev ${iface} src ${addr} table ${table}"
-				echo "    post-up ip rule del from ${addr}/32 table ${table} 2>/dev/null || true"
-				echo "    post-up ip rule add from ${addr}/32 table ${table} priority ${table}"
-				echo "    pre-down ip rule del from ${addr}/32 table ${table} 2>/dev/null || true"
-				echo "    pre-down ip route flush table ${table} 2>/dev/null || true"
-			fi
-			echo
-		done
-		echo "$end"
-	} >>"$file"
+	printf '\n' >>"$file"
+	cat "$block" >>"$file"
+	rm -f "$tmp" "$block"
 }
 
 apply_runtime_config() {
 	local i iface ipaddr addr table
 	for i in $(seq 0 $((NUM_VFS - 1))); do
+		if ! vf_is_host_owned "$i"; then
+			echo "skip ${VF_PREFIX}${i}: bound to vfio-pci passthrough"
+			continue
+		fi
 		iface="${VF_PREFIX}${i}"
 		ipaddr="$(ip_for_vf "$i")"
 		addr="$(ip_addr_only "$ipaddr")"
@@ -135,8 +188,16 @@ apply_runtime_config() {
 	ip route flush cache 2>/dev/null || true
 }
 
-need_root
 [ -n "$VF_IPS" ] || [ -n "$VF_IP_BASE" ] || { echo "error: set VF_IPS or VF_IP_BASE" >&2; exit 1; }
+
+if [ "$DRY_RUN" = "1" ]; then
+	render_interfaces_block
+	exit 0
+fi
+
+if [ "$PERSIST_INTERFACES" = "1" ] || [ "$APPLY_RUNTIME" = "1" ] || [ "$IFRELOAD" = "1" ]; then
+	need_root
+fi
 
 if [ "$PERSIST_INTERFACES" = "1" ]; then
 	write_interfaces_config "$INTERFACES_FILE"
@@ -146,6 +207,12 @@ if [ "$APPLY_RUNTIME" = "1" ]; then
 	apply_runtime_config
 fi
 
+if [ "$IFRELOAD" = "1" ]; then
+	command -v ifreload >/dev/null 2>&1 || { echo "error: missing command: ifreload" >&2; exit 1; }
+	run ifreload -a
+fi
+
 for i in $(seq 0 $((NUM_VFS - 1))); do
+	vf_is_host_owned "$i" || continue
 	ip -br addr show dev "${VF_PREFIX}${i}" || true
 done

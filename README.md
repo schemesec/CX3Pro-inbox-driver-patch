@@ -51,11 +51,14 @@ If that passes, build and install for the running kernel:
 ```sh
 ./install-pve7.sh --no-apt
 reboot
-PF=enp23s0 NUM_VFS=8 VF_VLAN=20 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./verify-pve7.sh
+PF=enp23s0 NUM_VFS=12 VF_VLAN=20 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./verify-pve7.sh
 
 # Optional: host-owned VF test IPs visible in the Proxmox network GUI.
-# Do not use this for VFs assigned to VMs.
+# Do not use this for VFs assigned to VMs. Review first, then apply.
+NUM_VFS=12 VF_IP_BASE=192.168.20. VF_ROUTE_CIDR=192.168.20.0/24 ./vf_roce_test_ifaces --dry-run
 NUM_VFS=12 VF_IP_BASE=192.168.20. VF_ROUTE_CIDR=192.168.20.0/24 ./vf_roce_test_ifaces
+NUM_VFS=12 ./test_vf_rdmacm --list
+CLIENT_SSH=root@192.168.1.50 NUM_VFS=12 ./test_vf_rdmacm
 ```
 
 Use `--strict-kernel` only when you want the installer to refuse kernels not
@@ -74,19 +77,24 @@ The repo includes the same style of host-side helper scripts used in
   and kernel warnings.
 - `vf_roce_test_ifaces` optionally writes host-owned VF test IPs to
   `/etc/network/interfaces` so Proxmox can display them as managed config.
+- `test_vf_rdmacm` runs coupled pvs3-listener/pvs1-client VF `ib_write_bw`
+  tests so approval delay cannot invalidate RDMA-CM results.
 
 Example pvs3 flow after the first reboot:
 
 ```sh
 cd /root/CX3Pro-inbox-driver-patch
-PF=enp23s0 NUM_VFS=8 VF_VLAN=20 ./sriov_setup
+PF=enp23s0 NUM_VFS=12 VF_VLAN=20 ./sriov_setup
 reboot
 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./rocesetup
-PF=enp23s0 NUM_VFS=8 VF_VLAN=20 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./verify-pve7.sh
+PF=enp23s0 NUM_VFS=12 VF_VLAN=20 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./verify-pve7.sh
 
 # Optional host-owned VF addresses for RDMA-CM testing, visible in Proxmox.
-# Skip this for VFs assigned to VMs.
+# Skip this for VFs assigned to VMs. Review first, then apply.
+NUM_VFS=12 VF_IP_BASE=192.168.20. VF_ROUTE_CIDR=192.168.20.0/24 ./vf_roce_test_ifaces --dry-run
 NUM_VFS=12 VF_IP_BASE=192.168.20. VF_ROUTE_CIDR=192.168.20.0/24 ./vf_roce_test_ifaces
+NUM_VFS=12 ./test_vf_rdmacm --list
+CLIENT_SSH=root@192.168.1.50 NUM_VFS=12 ./test_vf_rdmacm
 ```
 
 Unlike the OFED port, these scripts do not set `roce_mode`, `ud_gid_type`, or

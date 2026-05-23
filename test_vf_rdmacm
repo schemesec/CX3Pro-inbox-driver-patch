@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PF="${PF:-enp23s0}"
+NUM_VFS="${NUM_VFS:-12}"
+VF_IPS="${VF_IPS:-}"
+VF_IP_BASE="${VF_IP_BASE:-192.168.20.}"
+VF_IP_START="${VF_IP_START:-160}"
+VF_PREFIX="${VF_PREFIX:-enp23s0v}"
+CLIENT_SSH="${CLIENT_SSH:-}"
+CLIENT_DEV="${CLIENT_DEV:-mlx4_0}"
+CLIENT_GID_INDEX="${CLIENT_GID_INDEX:-5}"
+CLIENT_SOURCE_IP="${CLIENT_SOURCE_IP:-192.168.20.50}"
+SIZE="${SIZE:-65536}"
+SERVER_WARMUP="${SERVER_WARMUP:-3}"
+TIMEOUT="${TIMEOUT:-90}"
+LOG_DIR="${LOG_DIR:-logs/roce-tests}"
+LIST_ONLY="${LIST_ONLY:-0}"
+
+usage() {
+	cat <<USAGE
+Usage: $0 [options]
+
+Run coupled VF RDMA-CM RoCEv2 ib_write_bw tests. The server runs locally on
+host-owned VFs and the client command runs over CLIENT_SSH. The script maps
+local RDMA devices/GID indexes from sysfs at runtime and skips vfio-pci VFs.
+
+Options:
+  --list                  Show discovered host-owned VF RoCEv2 mappings only.
+  -h, --help              Show this help.
+
+Environment:
+  CLIENT_SSH=...          Required, e.g. root@192.168.1.50.
+  PF=...                  PF netdev. Default: enp23s0.
+  NUM_VFS=...             Number of VFs to consider. Default: 12.
+  VF_PREFIX=...           VF netdev prefix. Default: enp23s0v.
+  VF_IP_BASE=...          IPv4 base without final octet. Default: 192.168.20.
+  VF_IP_START=...         First generated final octet. Default: 160.
+  VF_IPS=...              Optional comma-separated target IP list.
+  CLIENT_DEV=...          Remote client RDMA device. Default: mlx4_0.
+  CLIENT_GID_INDEX=...    Remote client GID index. Default: 5.
+  CLIENT_SOURCE_IP=...    Remote client bind source IP. Default: 192.168.20.50.
+  SIZE=...                ib_write_bw message size. Default: 65536.
+  SERVER_WARMUP=...       Seconds to wait before client starts. Default: 3.
+  TIMEOUT=...             Per-test server timeout. Default: 90.
+  LOG_DIR=...             Test log directory. Default: logs/roce-tests.
+USAGE
+}
+
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+	--list) LIST_ONLY=1 ;;
+	-h|--help) usage; exit 0 ;;
+	*) echo "error: unknown option: $1" >&2; usage >&2; exit 2 ;;
+	esac
+	shift
+done
+
+command -v ib_write_bw >/dev/null 2>&1 || { echo "error: missing local ib_write_bw" >&2; exit 1; }
+command -v ssh >/dev/null 2>&1 || { echo "error: missing ssh" >&2; exit 1; }
+mkdir -p "$LOG_DIR"
+
+if [ "$LIST_ONLY" != "1" ]; then
+	[ -n "$CLIENT_SSH" ] || { echo "error: set CLIENT_SSH, e.g. CLIENT_SSH=root@192.168.1.50" >&2; exit 1; }
+fi
+
+ip_for_vf() {
+	local idx="$1" ip
+	if [ -n "$VF_IPS" ]; then
+		ip="$(printf '%s\n' "$VF_IPS" | tr ',' '\n' | awk -v n="$((idx + 1))" 'NR == n {gsub(/^[ \t]+|[ \t]+$/, ""); print; exit}')"
+		[ -n "$ip" ] || return 1
+		printf '%s\n' "$ip"
+		return 0
+	fi
+	printf '%s%d\n' "$VF_IP_BASE" "$((VF_IP_START + idx))"
+}
+
+vf_bdf() {
+	local idx="$1" vf_link
+	vf_link="/sys/class/net/${PF}/device/virtfn${idx}"
+	[ -e "$vf_link" ] || return 1
+	basename "$(readlink -f "$vf_link")"
+}
+
+vf_driver() {
+	local idx="$1" bdf driver_link
+	bdf="$(vf_bdf "$idx")" || return 1
+	driver_link="/sys/bus/pci/devices/${bdf}/driver"
+	[ -e "$driver_link" ] || return 1
+	basename "$(readlink -f "$driver_link")"
+}
+
+rdma_mapping_for_vf() {
+	local netdev="$1" f idx rd type ndev gid
+	for f in /sys/class/infiniband/*/ports/*/gid_attrs/ndevs/*; do
+		[ -f "$f" ] || continue
+		idx="${f##*/}"
+		rd="$(basename "${f%/ports/*}")"
+		ndev="$(cat "$f" 2>/dev/null || true)"
+		[ "$ndev" = "$netdev" ] || continue
+		type="$(cat "${f/ndevs/types}" 2>/dev/null || true)"
+		[ "$type" = "RoCE v2" ] || continue
+		gid="$(cat "${f/gid_attrs\/ndevs/gids}" 2>/dev/null || true)"
+		case "$gid" in
+		0000:0000:0000:0000:0000:ffff:*) printf '%s %s\n' "$rd" "$idx"; return 0 ;;
+		esac
+	done
+	return 1
+}
+
+failures=0
+tested=0
+for i in $(seq 0 $((NUM_VFS - 1))); do
+	driver="$(vf_driver "$i" 2>/dev/null || true)"
+	if [ "$driver" = "vfio-pci" ]; then
+		echo "SKIP vf$i: passthrough vfio-pci"
+		continue
+	fi
+	if [ "$driver" != "mlx4_core" ]; then
+		echo "FAIL vf$i: unexpected driver ${driver:-none}"
+		failures=$((failures + 1))
+		continue
+	fi
+	netdev="${VF_PREFIX}${i}"
+	ip="$(ip_for_vf "$i")"
+	mapping="$(rdma_mapping_for_vf "$netdev" 2>/dev/null || true)"
+	if [ -z "$mapping" ]; then
+		echo "FAIL vf$i: no IPv4 RoCEv2 GID mapping for $netdev"
+		failures=$((failures + 1))
+		continue
+	fi
+	read -r rd server_gid_index <<EOF_MAP
+$mapping
+EOF_MAP
+	if [ "$LIST_ONLY" = "1" ]; then
+		echo "MAP vf$i netdev=$netdev ip=$ip dev=$rd gid_index=$server_gid_index"
+		tested=$((tested + 1))
+		continue
+	fi
+	log="${LOG_DIR}/vf${i}-${ip}-rdmacm.log"
+	echo "TEST_START vf$i ip=$ip dev=$rd gid_index=$server_gid_index"
+	(timeout "$TIMEOUT" ib_write_bw -d "$rd" -i 1 -R -x "$server_gid_index" -F --report_gbits -s "$SIZE" --bind_source_ip "$ip" >"$log" 2>&1) &
+	server_pid=$!
+	sleep "$SERVER_WARMUP"
+	set +e
+	ssh "$CLIENT_SSH" "ib_write_bw -d '$CLIENT_DEV' -i 1 -R -x '$CLIENT_GID_INDEX' -F --report_gbits -s '$SIZE' --bind_source_ip '$CLIENT_SOURCE_IP' '$ip'"
+	client_rc=$?
+	wait "$server_pid"
+	server_rc=$?
+	set -e
+	echo "TEST_DONE vf$i server=$server_rc client=$client_rc"
+	grep -E 'Link type|GID index|rdma_cm QPs|65536|BW average|Failed|error|Unexpected|Unable|Completion' "$log" || true
+	tested=$((tested + 1))
+	if [ "$server_rc" -ne 0 ] || [ "$client_rc" -ne 0 ]; then
+		failures=$((failures + 1))
+	fi
+done
+
+[ "$tested" -gt 0 ] || { echo "test_vf_rdmacm: FAIL (no host-owned VFs found)"; exit 1; }
+if [ "$LIST_ONLY" = "1" ]; then
+	echo "test_vf_rdmacm: MAP OK ($tested VFs found)"
+	exit 0
+fi
+if [ "$failures" -eq 0 ]; then
+	echo "test_vf_rdmacm: PASS ($tested VFs tested)"
+	exit 0
+fi
+
+echo "test_vf_rdmacm: FAIL ($failures failures; $tested VFs exercised)"
+exit 1
