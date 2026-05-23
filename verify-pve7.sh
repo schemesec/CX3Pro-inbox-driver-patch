@@ -12,6 +12,7 @@ VLAN20_IP="${VLAN20_IP:-}"
 CHECK_VLAN_IPS="${CHECK_VLAN_IPS:-1}"
 FW_PREFIX="${FW_PREFIX:-2.42.5}"
 RDMA_DEV="${RDMA_DEV:-}"
+MTU="${MTU:-9000}"
 
 failures=0
 
@@ -200,6 +201,13 @@ fi
 section "PF VLAN interfaces"
 for netdev in "$PF" "$VLAN10_IF" "$VLAN20_IF"; do
 	ip -br addr show "$netdev" 2>/dev/null || true
+done
+for netdev in "$PF" "$VLAN10_IF" "$VLAN20_IF"; do
+	if [ -e "/sys/class/net/${netdev}/mtu" ] && [ "$(cat "/sys/class/net/${netdev}/mtu")" = "$MTU" ]; then
+		pass "$netdev MTU is $MTU"
+	else
+		fail "$netdev MTU is not $MTU"
+	fi
 done
 for vlan_if in "$VLAN10_IF" "$VLAN20_IF"; do
 	ip link show "$vlan_if" >/dev/null 2>&1 && pass "$vlan_if exists" || fail "$vlan_if missing"
