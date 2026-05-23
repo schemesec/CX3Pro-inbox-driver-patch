@@ -1,0 +1,241 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MFT_URL="${MFT_URL:-https://www.mellanox.com/downloads/MFT/mft-4.25.1-11-x86_64-deb.tgz}"
+MFT_TGZ="${MFT_TGZ:-/root/mftscratch/mft-4.25.1-11-x86_64-deb.tgz}"
+MFT_DIR="${MFT_DIR:-/root/mftscratch/mft-4.25.1-11-x86_64-deb}"
+FW_URL="${FW_URL:-https://content.mellanox.com/firmware/fw-ConnectX3Pro-rel-2_42_5000-MCX314A-BCC_Ax-FlexBoot-3.4.752.bin.zip}"
+FW_URL_FALLBACK="${FW_URL_FALLBACK:-http://www.mellanox.com/downloads/firmware/fw-ConnectX3Pro-rel-2_42_5000-MCX314A-BCC_Ax-FlexBoot-3.4.752.bin.zip}"
+FW_DIR="${FW_DIR:-/root/cx3-fw}"
+FW_ZIP="${FW_ZIP:-$FW_DIR/fw-ConnectX3Pro-rel-2_42_5000-MCX314A-BCC_Ax-FlexBoot-3.4.752.bin.zip}"
+FW_BIN="${FW_BIN:-$FW_DIR/fw-ConnectX3Pro-rel-2_42_5000-MCX314A-BCC_Ax-FlexBoot-3.4.752.bin}"
+EXPECTED_FW_VERSION_PREFIX="${EXPECTED_FW_VERSION_PREFIX:-2.42.5}"
+INSTALL_MFT_DKMS="${INSTALL_MFT_DKMS:-1}"
+INSTALL_DIR="${INSTALL_DIR:-/lib/modules/$(uname -r)/updates/cx3pro-inbox-rocev2}"
+FLASH="${FLASH:-0}"
+
+usage() {
+       cat <<EOF
+Usage: $0 [options]
+
+Install CX3 Pro userspace tooling and optionally verify/flash firmware.
+Kernel mlx4/RDMA modules are owned by ./install-pve7.sh, not this script.
+MST and firmware checks can run before the local inbox-patch modules exist.
+
+Options:
+  --no-mft-dkms       Skip kernel-mft-dkms package build/install.
+  --flash             Burn the configured firmware image after safety checks.
+  -h, --help          Show this help.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+       case "$1" in
+       --no-mft-dkms)
+               INSTALL_MFT_DKMS=0
+               ;;
+       --flash)
+               FLASH=1
+               ;;
+       -h|--help)
+               usage
+               exit 0
+               ;;
+       *)
+               echo "error: unknown option: $1" >&2
+               usage >&2
+               exit 2
+               ;;
+       esac
+       shift
+done
+
+run() {
+       echo "+ $*"
+       "$@"
+}
+
+apt_install() {
+       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --no-upgrade "$@"
+}
+
+need_root() {
+       if [ "$(id -u)" -ne 0 ]; then
+               echo "error: this script must run as root" >&2
+               exit 1
+       fi
+}
+
+flint_fw_version() {
+       awk -F: '/FW Version:/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' "$1"
+}
+
+need_root
+
+echo "=== CX3 Pro setup/update ==="
+echo "host=$(hostname)"
+echo "kernel=$(uname -r)"
+echo
+
+LOCAL_PATCH_READY=0
+if ! modprobe --show-depends mlx4_core 2>/dev/null | grep -q "$INSTALL_DIR"; then
+       echo "warning: mlx4_core does not resolve to the CX3 Pro inbox-patch installed module directory" >&2
+       echo "warning: firmware/MST setup will continue, but RDMA module loading will be skipped" >&2
+       echo "warning: run ./install-pve7.sh and reboot before RoCE/SR-IOV data-path testing" >&2
+else
+       LOCAL_PATCH_READY=1
+fi
+
+echo "=== Installing base dependencies ==="
+run apt-get update
+HEADER_PKG="pve-headers-$(uname -r)"
+apt-cache show "$HEADER_PKG" >/dev/null 2>&1 || HEADER_PKG="proxmox-headers-$(uname -r)"
+run apt_install "$HEADER_PKG" build-essential dkms make gcc perl unzip wget curl pciutils ethtool zlib1g zlib1g-dev libexpat1 libexpat1-dev python3-pip python3-dev python3-wheel rdma-core ibverbs-providers ibverbs-utils infiniband-diags perftest
+apt_install libpcap-dev || apt_install libpcap0.8-dev
+
+echo
+echo "=== Downloading/extracting MFT ==="
+mkdir -p /root/mftscratch
+if [ ! -f "$MFT_TGZ" ]; then
+       run wget -O "$MFT_TGZ" "$MFT_URL"
+fi
+if [ ! -d "$MFT_DIR" ]; then
+       run tar -xzf "$MFT_TGZ" -C /root/mftscratch
+fi
+
+if [ "$INSTALL_MFT_DKMS" -eq 1 ]; then
+       echo
+       echo "=== Installing MFT DKMS package for MST tooling ==="
+       cd "$MFT_DIR"
+       dpkg -i SDEBS/kernel-mft-dkms_4.25.1-11_all.deb || true
+       if [ -d /usr/src/kernel-mft-dkms-4.25.1 ]; then
+               find /usr/src/kernel-mft-dkms-4.25.1 -name Makefile -type f -exec sed -i -E 's/^EXTRA_CFLAGS[[:space:]]*([+:]?=)/ccflags-y +=/' {} \;
+       fi
+       dkms remove kernel-mft-dkms/4.25.1 --all 2>/dev/null || true
+       dkms add -m kernel-mft-dkms -v 4.25.1 2>/dev/null || true
+       run dkms build kernel-mft-dkms/4.25.1 -k "$(uname -r)"
+       run dkms install kernel-mft-dkms/4.25.1 -k "$(uname -r)"
+else
+       echo "Skipping MFT DKMS by request."
+fi
+
+echo
+echo "=== Installing MFT userspace packages ==="
+cd "$MFT_DIR"
+apt_install ./DEBS/*.deb || { dpkg -i DEBS/*.deb; apt-get -f install -y --no-install-recommends --no-upgrade; }
+dpkg --configure -a
+apt-get -f install -y --no-install-recommends --no-upgrade
+
+echo
+echo "=== Starting MST ==="
+run mst start
+mst status -v || true
+
+echo
+echo "=== Downloading CX3 Pro firmware image ==="
+mkdir -p "$FW_DIR"
+if [ ! -f "$FW_ZIP" ]; then
+       wget -O "$FW_ZIP" "$FW_URL" || wget -O "$FW_ZIP" "$FW_URL_FALLBACK"
+fi
+cd "$FW_DIR"
+run unzip -o "$FW_ZIP"
+
+if [ ! -f "$FW_BIN" ]; then
+       echo "error: firmware image not found: $FW_BIN" >&2
+       exit 1
+fi
+
+echo
+echo "=== Detecting CX3 MST/flint device ==="
+CX3_DEV="$(mst status -v 2>/dev/null | awk '$2 ~ /\/dev\/mst\/mt.*pci_cr/ {print $2; exit}')"
+if [ -z "$CX3_DEV" ]; then
+       CX3_DEV="$(mlxfwmanager --query 2>/dev/null | awk -F: '/PCI Device Name:/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
+fi
+if [ -z "$CX3_DEV" ]; then
+       CX3_DEV="$(lspci -D | awk '/Mellanox|ConnectX-3|MT27520|MT4103/ {print $1; exit}')"
+fi
+if [ -z "$CX3_DEV" ]; then
+       echo "error: could not detect CX3 Pro device" >&2
+       mst status -v || true
+       mlxfwmanager --query || true
+       lspci -D | grep -i mellanox || true
+       exit 1
+fi
+if echo "$CX3_DEV" | grep -q 'ConnectX3Pro'; then
+       echo "error: bad CX3_DEV value detected: $CX3_DEV" >&2
+       mst status -v || true
+       exit 1
+fi
+
+echo "cx3_dev=${CX3_DEV}"
+echo "fw_bin=${FW_BIN}"
+
+mlxfwmanager --query || true
+run flint -d "$CX3_DEV" q
+run flint -i "$FW_BIN" q
+
+echo
+echo "=== Firmware safety checks ==="
+flint -d "$CX3_DEV" q | tee "$FW_DIR/current-card.txt" >/dev/null
+flint -i "$FW_BIN" q | tee "$FW_DIR/candidate-image.txt" >/dev/null
+
+CURRENT_FW_VERSION="$(flint_fw_version "$FW_DIR/current-card.txt")"
+CANDIDATE_FW_VERSION="$(flint_fw_version "$FW_DIR/candidate-image.txt")"
+echo "current_fw_version=${CURRENT_FW_VERSION:-unknown}"
+echo "candidate_fw_version=${CANDIDATE_FW_VERSION:-unknown}"
+
+if ! echo "$CANDIDATE_FW_VERSION" | grep -q "^${EXPECTED_FW_VERSION_PREFIX}"; then
+       echo "error: candidate firmware is not ${EXPECTED_FW_VERSION_PREFIX}x" >&2
+       cat "$FW_DIR/candidate-image.txt"
+       exit 1
+fi
+if ! echo "$CURRENT_FW_VERSION" | grep -q "^${EXPECTED_FW_VERSION_PREFIX}"; then
+       echo "warning: current card firmware is not ${EXPECTED_FW_VERSION_PREFIX}x" >&2
+       echo "warning: no firmware will be flashed unless this script is run with --flash" >&2
+fi
+
+if ! grep -q "PSID:.*MT_1090111023" "$FW_DIR/current-card.txt"; then
+       echo "error: current card PSID does not look like MT_1090111023; not flashing" >&2
+       cat "$FW_DIR/current-card.txt"
+       exit 1
+fi
+if ! grep -q "PSID:.*MT_1090111023" "$FW_DIR/candidate-image.txt"; then
+       echo "error: candidate firmware PSID does not look like MT_1090111023; not flashing" >&2
+       cat "$FW_DIR/candidate-image.txt"
+       exit 1
+fi
+
+mkdir -p /root/cx3-fw-backup
+BACKUP_FW="/root/cx3-fw-backup/$(hostname)-cx3pro-before-flash-$(date +%Y%m%d-%H%M%S).bin"
+flint -d "$CX3_DEV" ri "$BACKUP_FW" || true
+echo "backup_fw=${BACKUP_FW}"
+
+echo
+echo "=== RDMA hardware check ==="
+if [ "$LOCAL_PATCH_READY" = "1" ]; then
+       echo
+       echo "=== Loading installed inbox-patch modules ==="
+       for module in mlx4_core mlx4_en mlx4_ib ib_uverbs rdma_cm; do
+               run modprobe "$module" || true
+       done
+
+       ls /sys/class/infiniband 2>/dev/null || true
+       ibv_devices || true
+       rdma link || true
+       lsmod | grep -E 'mlx4|rxe|rdma' || true
+else
+       echo "Skipped: local inbox-patch modules are not installed yet."
+       echo "Run ./install-pve7.sh, reboot, then rerun this script or continue with sriov_setup/rocesetup."
+fi
+
+echo
+echo "=== Firmware flash control ==="
+if [ "$FLASH" = "1" ]; then
+       echo "FLASH=1 set, flashing firmware now."
+       run flint -d "$CX3_DEV" -i "$FW_BIN" burn
+       echo "Firmware burn complete. Reboot this host when ready."
+else
+       echo "Firmware was not flashed."
+       echo "If you intentionally want to flash this image later, run:"
+       echo "  $0 --flash"
+fi

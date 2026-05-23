@@ -11,7 +11,7 @@ PVE_KERNEL_REF="${PVE_KERNEL_REF:-}"
 UBUNTU_KERNEL_REPO="${UBUNTU_KERNEL_REPO:-https://git.proxmox.com/git/mirror_ubuntu-kernels.git}"
 ZFSONLINUX_REPO="${ZFSONLINUX_REPO:-https://git.proxmox.com/git/zfsonlinux.git}"
 BACKUP_DIR="${BACKUP_DIR:-}"
-NUM_VFS="${NUM_VFS:-8}"
+NUM_VFS="${NUM_VFS:-12}"
 PORT_TYPE_ARRAY="${PORT_TYPE_ARRAY:-2,2}"
 LOG_NUM_MGM_ENTRY_SIZE="${LOG_NUM_MGM_ENTRY_SIZE:--7}"
 BUILD_ONLY=0
@@ -49,7 +49,7 @@ Environment:
   INSTALL_DIR=...    Module install directory. Default:
                      /lib/modules/\$KVER/updates/cx3pro-inbox-rocev2
   BACKUP_DIR=...     Backup directory for previous installed modules.
-  NUM_VFS=...        mlx4 PF0 VF count for modprobe/initramfs config. Default: 8.
+  NUM_VFS=...        mlx4 PF0 VF count for modprobe/initramfs config. Default: 12.
   PORT_TYPE_ARRAY=... mlx4 port type array. Default: 2,2.
 EOF
 }

@@ -146,6 +146,11 @@ for module in mlx4_core mlx4_en mlx4_ib ib_uverbs rdma_cm; do
 	run modprobe "$module"
 done
 
+if lsmod | grep -q '^rdma_rxe'; then
+	echo "error: rdma_rxe is loaded; unload software RoCE before CX3 hardware testing" >&2
+	exit 1
+fi
+
 RDMA_DEV="$(find_rdma_dev "$PARENT_IF" || true)"
 [ -n "$RDMA_DEV" ] || { echo "error: no RDMA device found for $PARENT_IF" >&2; exit 1; }
 

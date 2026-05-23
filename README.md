@@ -14,9 +14,12 @@ On the Proxmox host:
 cd /root
 git clone https://github.com/schemesec/CX3Pro-inbox-driver-patch.git
 cd CX3Pro-inbox-driver-patch
+./cx3pro-install
 ./install-pve7.sh
 reboot
 ```
+
+`cx3pro-install` installs MST/MFT tooling and verifies the CX3 Pro firmware image and current card firmware; firmware burning remains opt-in through `--flash`. The post-boot verifier requires firmware matching `2.42.5x`.
 
 The installer builds patched inbox `mlx4_core`, `mlx4_en`, and `mlx4_ib`
 modules for the currently running kernel, installs them under
@@ -70,6 +73,7 @@ for intentionally testing an unlisted kernel.
 The repo includes the same style of host-side helper scripts used in
 `mlx-research`, adapted for the inbox-driver patch:
 
+- `cx3pro-install` installs MST/MFT tooling and verifies or explicitly flashes CX3 Pro firmware.
 - `install-pve7.sh` builds and installs only the patched inbox `mlx4` modules.
 - `sriov_setup` configures CX3 Pro SR-IOV boot options and the VF VLAN service.
 - `rocesetup` configures PF VLAN interfaces for RoCEv2 testing.
@@ -79,11 +83,14 @@ The repo includes the same style of host-side helper scripts used in
   `/etc/network/interfaces` so Proxmox can display them as managed config.
 - `test_vf_rdmacm` runs coupled pvs3-listener/pvs1-client VF `ib_write_bw`
   tests so approval delay cannot invalidate RDMA-CM results.
+- `rollback-pve7.sh` restores a previously backed-up inbox module directory and updates initramfs.
 
 Example pvs3 flow after the first reboot:
 
 ```sh
 cd /root/CX3Pro-inbox-driver-patch
+./cx3pro-install
+./install-pve7.sh --no-apt
 PF=enp23s0 NUM_VFS=12 VF_VLAN=20 ./sriov_setup
 reboot
 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./rocesetup
@@ -104,3 +111,5 @@ and `mlx4_core.enable_mfunc_roce_v2=1`.
 The verifier intentionally fails on kernel warnings and symbol/path mismatches.
 Those checks are there to catch real driver regressions; they are not masking
 or filtering driver failures to make the patch look clean.
+
+`install-stock-rdma-pve7.sh` from `mlx-research` is intentionally not copied into this repository: this inbox patch already leaves current inbox `rdma_cm`, `nvme-rdma`, and `nvmet-rdma` in place.

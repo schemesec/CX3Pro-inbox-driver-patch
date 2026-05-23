@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PF="${PF:-enp23s0}"
-NUM_VFS="${NUM_VFS:-8}"
+NUM_VFS="${NUM_VFS:-12}"
 VF_VLAN="${VF_VLAN:-20}"
 INSTALL_DIR="${INSTALL_DIR:-/lib/modules/$(uname -r)/updates/cx3pro-inbox-rocev2}"
 VLAN10_IF="${VLAN10_IF:-${PF}.10}"
@@ -10,6 +10,8 @@ VLAN20_IF="${VLAN20_IF:-${PF}.20}"
 VLAN10_IP="${VLAN10_IP:-}"
 VLAN20_IP="${VLAN20_IP:-}"
 CHECK_VLAN_IPS="${CHECK_VLAN_IPS:-1}"
+FW_PREFIX="${FW_PREFIX:-2.42.5}"
+RDMA_DEV="${RDMA_DEV:-}"
 
 failures=0
 
@@ -134,9 +136,27 @@ for netdev in "$PF" "$VLAN10_IF" "$VLAN20_IF"; do
 	ip link show "$netdev" >/dev/null 2>&1 && check_roce_v2_gid_for_netdev "$netdev" || warn "$netdev missing; skipping GID check"
 done
 
+section "firmware"
+RDMA_DEV="${RDMA_DEV:-$(rdma_dev_for_netdev "$PF" || true)}"
+if [ -z "$RDMA_DEV" ]; then
+	fail "could not find RDMA device for PF $PF"
+elif ibv_devinfo -d "$RDMA_DEV" 2>/dev/null | grep -q "fw_ver:[[:space:]]*${FW_PREFIX}"; then
+	pass "$RDMA_DEV firmware matches ${FW_PREFIX}x"
+else
+	fail "$RDMA_DEV firmware does not match ${FW_PREFIX}x"
+	ibv_devinfo -d "$RDMA_DEV" 2>/dev/null | grep "fw_ver:" || true
+fi
+
 section "RDMA devices"
 ibv_devices || true
 rdma link show || true
+
+section "SR-IOV service"
+if systemctl is-active --quiet cx3pro-sriov-vfs.service; then
+	pass "cx3pro-sriov-vfs.service active"
+else
+	fail "cx3pro-sriov-vfs.service not active"
+fi
 
 section "SR-IOV VFs"
 if ! ip link show "$PF" >/dev/null 2>&1; then

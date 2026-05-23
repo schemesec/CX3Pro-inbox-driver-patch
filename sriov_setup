@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PF="${PF:-enp23s0}"
-NUM_VFS="${NUM_VFS:-8}"
+NUM_VFS="${NUM_VFS:-12}"
 VF_VLAN="${VF_VLAN:-20}"
 FW_NUM_OF_VFS="${FW_NUM_OF_VFS:-32}"
 ENABLE_IOMMU_GRUB="${ENABLE_IOMMU_GRUB:-0}"
@@ -32,7 +32,7 @@ Options:
 
 Environment:
   PF=...                PF netdev. Default: enp23s0.
-  NUM_VFS=...           Number of VFs for port 1. Default: 8.
+  NUM_VFS=...           Number of VFs for port 1. Default: 12.
   VF_VLAN=...           VLAN assigned to each VF. Default: 20.
   FW_NUM_OF_VFS=...     Firmware NUM_OF_VFS target. Default: 32.
   PORT_TYPE_ARRAY=...   mlx4 port type array. Default: 2,2.
@@ -172,7 +172,7 @@ install -m 0755 /dev/stdin /usr/local/sbin/cx3pro-apply-vf-vlans.sh <<'VFHELPER'
 set -euo pipefail
 
 PF="${PF:-enp23s0}"
-NUM_VFS="${NUM_VFS:-8}"
+NUM_VFS="${NUM_VFS:-12}"
 VF_VLAN="${VF_VLAN:-20}"
 ASSIGN_VF_MACS="${ASSIGN_VF_MACS:-1}"
 VF_MACS="${VF_MACS:-}"
