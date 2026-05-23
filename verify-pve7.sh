@@ -13,6 +13,7 @@ CHECK_VLAN_IPS="${CHECK_VLAN_IPS:-1}"
 FW_PREFIX="${FW_PREFIX:-2.42.5}"
 RDMA_DEV="${RDMA_DEV:-}"
 MTU="${MTU:-9000}"
+LINK_WAIT_SECS="${LINK_WAIT_SECS:-60}"
 
 failures=0
 
@@ -109,6 +110,18 @@ check_roce_v2_gid_for_netdev() {
 	fail "$netdev does not have a nonzero RoCE v2 GID"
 }
 
+wait_for_pf_rdma_link() {
+	local elapsed=0
+	while [ "$elapsed" -lt "$LINK_WAIT_SECS" ]; do
+		if rdma link show 2>/dev/null | grep -Eq "state ACTIVE .*netdev ${PF}([[:space:]]|$)"; then
+			return 0
+		fi
+		sleep 1
+		elapsed=$((elapsed + 1))
+	done
+	return 1
+}
+
 section "host"
 hostname
 uname -r
@@ -151,6 +164,12 @@ fi
 section "RDMA devices"
 ibv_devices || true
 rdma link show || true
+if wait_for_pf_rdma_link; then
+	pass "PF RDMA link is ACTIVE"
+else
+	fail "PF RDMA link did not become ACTIVE within ${LINK_WAIT_SECS}s"
+	rdma link show || true
+fi
 
 section "SR-IOV service"
 if systemctl is-active --quiet cx3pro-sriov-vfs.service; then
@@ -222,7 +241,7 @@ if [ "$CHECK_VLAN_IPS" = "1" ]; then
 fi
 
 section "kernel warning scan"
-if journalctl -k -b -g 'BUG|Oops|WARNING|Call Trace|Unknown symbol|disagrees|__warn|fortify|objtool|vhcr command:0x3a' --no-pager | grep -v '^-- No entries --'; then
+if journalctl -k -b -g 'BUG|Oops|WARNING|Call Trace|Unknown symbol|disagrees|__warn|fortify|objtool|vhcr command:' --no-pager | grep -v '^-- No entries --'; then
 	fail "kernel warning scan found entries"
 else
 	pass "kernel warning scan has no matching entries"
