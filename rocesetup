@@ -86,7 +86,7 @@ write_interfaces_config() {
 	cp "$file" "${file}.bak.$(date +%Y%m%d-%H%M%S)" 2>/dev/null || true
 	[ -f "$file" ] && sed "/^${begin}$/,/^${end}$/d" "$file" >"$tmp" || : >"$tmp"
 	for iface in "$VLAN10_IF" "$VLAN20_IF"; do
-		if grep -Eq "^[[:space:]]*iface[[:space:]]+${iface}[[:space:]]" "$tmp"; then
+		if awk -v name="$iface" '$1 == "iface" && $2 == name { found=1 } END { exit !found }' "$tmp"; then
 			echo "error: ${iface} already has an unmanaged stanza in ${file}" >&2
 			rm -f "$tmp"
 			exit 1
@@ -97,7 +97,7 @@ write_interfaces_config() {
 	{
 		echo
 		echo "$begin"
-		if ! grep -Eq "^[[:space:]]*iface[[:space:]]+${PARENT_IF}[[:space:]]" "$file"; then
+		if ! awk -v name="$PARENT_IF" '$1 == "iface" && $2 == name { found=1 } END { exit !found }' "$file"; then
 			echo "auto ${PARENT_IF}"
 			echo "iface ${PARENT_IF} inet manual"
 			echo "    mtu ${MTU}"

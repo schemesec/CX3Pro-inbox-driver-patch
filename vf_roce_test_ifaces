@@ -151,7 +151,7 @@ write_interfaces_config() {
 	for i in $(seq 0 $((NUM_VFS - 1))); do
 		vf_is_host_owned "$i" || continue
 		iface="${VF_PREFIX}${i}"
-		if grep -Eq "^[[:space:]]*iface[[:space:]]+${iface}[[:space:]]" "$tmp"; then
+		if awk -v name="$iface" '$1 == "iface" && $2 == name { found=1 } END { exit !found }' "$tmp"; then
 			echo "error: ${iface} already has an unmanaged stanza in ${file}" >&2
 			rm -f "$tmp" "$block"
 			exit 1
