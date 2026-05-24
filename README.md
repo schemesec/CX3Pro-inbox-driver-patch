@@ -76,7 +76,7 @@ The repo includes the same style of host-side helper scripts used in
 - `cx3pro-install` installs MST/MFT, RDMA test, and `nvme-cli` tooling and verifies or explicitly flashes CX3 Pro firmware.
 - `install-pve7.sh` builds and installs only the patched inbox `mlx4` modules.
 - `sriov_setup` configures CX3 Pro SR-IOV boot options and the VF VLAN service, including RoCE VLAN PCP `3` by default.
-- `rocesetup` configures PF VLAN interfaces for RoCEv2 testing and maps egress RoCE traffic to VLAN PCP `3` by default.
+- `rocesetup` configures PF VLAN interfaces for RoCEv2 testing, maps egress RoCE traffic to VLAN PCP `3`, and enables PFC for that priority by default.
 - `verify-pve7.sh` checks module resolution, RoCEv2 GIDs, VF VLAN/MAC state,
   and kernel warnings.
 - `vf_roce_test_ifaces` optionally writes host-owned VF test IPs to
@@ -96,6 +96,7 @@ reboot
 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 VLAN20_ROUTE_CIDR=192.168.20.0/24 ./rocesetup
 # VLAN IPv6 is disabled by default here so the eight PF GID entries are used for the required IPv4 RoCE endpoints.
 # RoCE PCP 3 is applied by default to PF VLAN egress and VF VLAN policy for the lossless traffic class.
+# PFC is enabled on the CX3 PF for priority 3 by default, matching the lossless RoCE class.
 PF=enp23s0 NUM_VFS=12 VF_VLAN=20 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./verify-pve7.sh
 
 # Optional host-owned VF addresses for RDMA-CM testing, visible in Proxmox.

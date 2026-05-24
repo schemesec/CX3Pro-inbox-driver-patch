@@ -10,6 +10,7 @@ VLAN20_ROUTE_CIDR="${VLAN20_ROUTE_CIDR:-}"
 VLAN20_ROUTE_TABLE="${VLAN20_ROUTE_TABLE:-159}"
 MTU="${MTU:-9000}"
 ROCE_PCP="${ROCE_PCP:-3}"
+ROCE_PFC="${ROCE_PFC:-1}"
 VLAN_IPV6="${VLAN_IPV6:-0}"
 INSTALL_PACKAGES="${INSTALL_PACKAGES:-0}"
 PERSIST_INTERFACES="${PERSIST_INTERFACES:-1}"
@@ -36,6 +37,7 @@ Environment:
   VLAN20_ROUTE_TABLE=... Policy-routing table for VLAN20. Default: 159.
   MTU=...               MTU for PF and VLAN interfaces. Default: 9000.
   ROCE_PCP=...          VLAN PCP for RoCE lossless priority. Default: 3.
+  ROCE_PFC=0|1          Enable PFC on ROCE_PCP for the parent PF. Default: 1.
   VLAN_IPV6=0|1       Enable IPv6 on managed VLAN interfaces. Default: 0.
   PERSIST_INTERFACES=0|1 Write Proxmox ifupdown config. Default: 1.
 EOF
@@ -128,6 +130,7 @@ write_interfaces_config() {
 		echo "    mtu ${MTU}"
 		echo "    vlan-raw-device ${PARENT_IF}"
 		echo "    post-up ip link set dev ${VLAN20_IF} type vlan egress-qos-map 0:${ROCE_PCP}"
+		[ "$ROCE_PFC" = "1" ] && echo "    post-up dcb pfc set dev ${PARENT_IF} prio-pfc all:off ${ROCE_PCP}:on"
 		if [ -n "$VLAN20_ROUTE_CIDR" ]; then
 			echo "    post-up ip route replace ${VLAN20_ROUTE_CIDR} dev ${VLAN20_IF} src ${VLAN20_IP%/*} table ${VLAN20_ROUTE_TABLE}"
 			echo "    post-up ip rule del from ${VLAN20_IP%/*}/32 table ${VLAN20_ROUTE_TABLE} 2>/dev/null || true"
@@ -148,6 +151,10 @@ case "$ROCE_PCP" in
 [0-7]) ;;
 *) echo "error: ROCE_PCP must be an integer from 0 through 7" >&2; exit 1 ;;
 esac
+case "$ROCE_PFC" in
+0|1) ;;
+*) echo "error: ROCE_PFC must be 0 or 1" >&2; exit 1 ;;
+esac
 [ -z "$VLAN20_ROUTE_CIDR" ] || [ -n "$VLAN20_IP" ] || { echo "error: VLAN20_ROUTE_CIDR requires VLAN20_IP" >&2; exit 1; }
 
 echo "=== CX3 Pro inbox RoCEv2 setup ==="
@@ -157,13 +164,14 @@ echo "vlan${VLAN10_ID}_ip=${VLAN10_IP:-unset}"
 echo "vlan${VLAN20_ID}_ip=${VLAN20_IP:-unset}"
 echo "mtu=${MTU}"
 echo "roce_pcp=${ROCE_PCP}"
+echo "roce_pfc=${ROCE_PFC}"
 
 if [ "$INSTALL_PACKAGES" -eq 1 ]; then
 	run apt update
 	run apt install -y rdma-core ibverbs-providers ibverbs-utils infiniband-diags perftest nvme-cli ethtool iproute2 pciutils
 fi
 
-for cmd in ip ethtool rdma ibv_devices; do
+for cmd in ip ethtool rdma ibv_devices dcb; do
 	need_cmd "$cmd"
 done
 
@@ -187,6 +195,7 @@ RDMA_DEV="$(find_rdma_dev "$PARENT_IF" || true)"
 
 run ip link set "$PARENT_IF" up
 run ip link set "$PARENT_IF" mtu "$MTU"
+[ "$ROCE_PFC" = "0" ] || run dcb pfc set dev "$PARENT_IF" prio-pfc all:off "${ROCE_PCP}:on"
 
 VLAN10_IF="${PARENT_IF}.${VLAN10_ID}"
 VLAN20_IF="${PARENT_IF}.${VLAN20_ID}"

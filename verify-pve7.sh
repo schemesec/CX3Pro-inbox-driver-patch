@@ -5,6 +5,7 @@ PF="${PF:-enp23s0}"
 NUM_VFS="${NUM_VFS:-12}"
 VF_VLAN="${VF_VLAN:-20}"
 ROCE_PCP="${ROCE_PCP:-3}"
+CHECK_PFC="${CHECK_PFC:-1}"
 INSTALL_DIR="${INSTALL_DIR:-/lib/modules/$(uname -r)/updates/cx3pro-inbox-rocev2}"
 VLAN10_IF="${VLAN10_IF:-${PF}.10}"
 VLAN20_IF="${VLAN20_IF:-${PF}.20}"
@@ -217,6 +218,15 @@ if [ $((host_vfs + passthrough_vfs)) -eq "$NUM_VFS" ]; then
 	pass "$NUM_VFS VFs accounted for: $host_vfs host-owned, $passthrough_vfs passthrough"
 else
 	fail "VF accounting mismatch: expected $NUM_VFS, got $host_vfs host-owned and $passthrough_vfs passthrough"
+fi
+
+section "RoCE priority flow control"
+if [ "$CHECK_PFC" = "1" ]; then
+	if command -v dcb >/dev/null 2>&1 && dcb pfc show dev "$PF" 2>/dev/null | grep -q "prio-pfc .*${ROCE_PCP}:on"; then
+		pass "$PF PFC is enabled for RoCE PCP $ROCE_PCP"
+	else
+		fail "$PF PFC is not enabled for RoCE PCP $ROCE_PCP"
+	fi
 fi
 
 section "PF VLAN interfaces"
