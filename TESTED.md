@@ -142,10 +142,14 @@ Validated from `rpool/ROOT/pve-1@fresh-install` booting kernel `7.0.2-6-pve` wit
 - PF inbound RoCEv2 RDMA-CM `ib_write_bw` from pvs1 to `192.168.20.56` passed at `49.63 Gbit/sec`. VF0 passed individually in both listener forms at `49.57-49.61 Gbit/sec`; a longer inbound run to VF4 passed at `50.09 Gbit/sec`.
 - All twelve pvs3 VFs successfully initiated reverse-direction RDMA-CM connections to pvs1 after reboot, and the post-traffic pvs3 Mellanox/GID/VHCR scan returned no entries.
 
-Unresolved in this validation run:
+## Traffic priority validation, 2026-05-24
 
-- A sequential pvs1-initiated sweep succeeded for VF0, then later VF targets reported an RDMA-CM client event failure; individual retry of VF1 passed. This requires additional isolation on pvs1 before claiming repeatable inbound multi-VF coverage for the corrected boot.
-- Reverse-direction bandwidth was inconsistent across PF/VFs: long runs observed `16.51 Gbit/sec` on the PF, `18.93 Gbit/sec` on VF4, and `50.31 Gbit/sec` on VF3, while inbound VF4 reached `50.09 Gbit/sec`. Determine whether switching/lossless Ethernet configuration or host-side behavior explains this before accepting bidirectional performance.
+- A paired sequential pvs1-initiated sweep to all twelve pvs3 VFs passed without RDMA-CM failure at `49.38-50.67 Gbit/sec`; the earlier sequence failure did not reproduce once each listener and client were started together. A post-sweep pvs3 kernel scan returned no Mellanox, GID-add, completion, or call-trace entries.
+- Reverse-direction tests initially reproduced inconsistent throughput: the PF and some VFs reached approximately `50 Gbit/sec`, while VF1 and VF3-VF6/VF8 completed at `10-18 Gbit/sec`. `ethtool -S enp23s0` showed incoming RoCE traffic on priority 3 but outgoing test traffic on priority 0.
+- Applying PF VLAN egress mapping `0:3` and VF VLAN `qos 3` at runtime moved outgoing traffic to priority 3. Previously slow VF1/VF3/VF4/VF8 then passed at `49.79-50.45 Gbit/sec`, PF passed at `49.74 Gbit/sec`, and no relevant kernel errors were logged. `rocesetup` and `sriov_setup` now persist this as `ROCE_PCP=3` by default, and `verify-pve7.sh` checks it.
+
+Remaining observation:
+
 - The host logs recurring corrected APEI PCIe errors for NVMe endpoint vendor `15b7`, device `5002`, separate from the Mellanox `15b3:1007` adapter.
 
 Not yet repeated after the latest clean inbox-patch boot:

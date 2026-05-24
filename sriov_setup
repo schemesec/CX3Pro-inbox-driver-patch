@@ -4,6 +4,7 @@ set -euo pipefail
 PF="${PF:-enp23s0}"
 NUM_VFS="${NUM_VFS:-12}"
 VF_VLAN="${VF_VLAN:-20}"
+ROCE_PCP="${ROCE_PCP:-3}"
 FW_NUM_OF_VFS="${FW_NUM_OF_VFS:-32}"
 ENABLE_IOMMU_GRUB="${ENABLE_IOMMU_GRUB:-0}"
 ACS_OVERRIDE="${ACS_OVERRIDE:-0}"
@@ -34,6 +35,7 @@ Environment:
   PF=...                PF netdev. Default: enp23s0.
   NUM_VFS=...           Number of VFs for port 1. Default: 12.
   VF_VLAN=...           VLAN assigned to each VF. Default: 20.
+  ROCE_PCP=...          VLAN PCP assigned to VF RoCE traffic. Default: 3.
   FW_NUM_OF_VFS=...     Firmware NUM_OF_VFS target. Default: 32.
   PORT_TYPE_ARRAY=...   mlx4 port type array. Default: 2,2.
   ASSIGN_VF_MACS=0|1    Assign stable VF MACs. Default: 1.
@@ -81,12 +83,17 @@ ensure_initramfs_modules() {
 }
 
 need_root
+case "$ROCE_PCP" in
+[0-7]) ;;
+*) echo "error: ROCE_PCP must be an integer from 0 through 7" >&2; exit 1 ;;
+esac
 
 echo "=== CX3 Pro inbox SR-IOV setup ==="
 echo "host=$(hostname)"
 echo "pf=${PF}"
 echo "num_vfs=${NUM_VFS}"
 echo "vf_vlan=${VF_VLAN}"
+echo "roce_pcp=${ROCE_PCP}"
 echo "fw_num_of_vfs=${FW_NUM_OF_VFS}"
 echo "assign_vf_macs=${ASSIGN_VF_MACS}"
 echo "reprobe_vfs=${REPROBE_VFS}"
@@ -174,6 +181,7 @@ set -euo pipefail
 PF="${PF:-enp23s0}"
 NUM_VFS="${NUM_VFS:-12}"
 VF_VLAN="${VF_VLAN:-20}"
+ROCE_PCP="${ROCE_PCP:-3}"
 ASSIGN_VF_MACS="${ASSIGN_VF_MACS:-1}"
 VF_MACS="${VF_MACS:-}"
 REPROBE_VFS="${REPROBE_VFS:-1}"
@@ -222,9 +230,9 @@ for i in $(seq 0 $((NUM_VFS - 1))); do
 	if [ "$ASSIGN_VF_MACS" = "1" ]; then
 		vf_mac="$(vf_mac_from_list "$i")"
 		[ -n "$vf_mac" ] || vf_mac="$(vf_mac_from_pf "$PF" "$i")"
-		ip link set "$PF" vf "$i" mac "$vf_mac" vlan "$VF_VLAN"
+		ip link set "$PF" vf "$i" mac "$vf_mac" vlan "$VF_VLAN" qos "$ROCE_PCP"
 	else
-		ip link set "$PF" vf "$i" vlan "$VF_VLAN"
+		ip link set "$PF" vf "$i" vlan "$VF_VLAN" qos "$ROCE_PCP"
 	fi
 	ip link set "$PF" vf "$i" spoofchk on
 done
@@ -254,6 +262,7 @@ RemainAfterExit=yes
 Environment=PF=${PF}
 Environment=NUM_VFS=${NUM_VFS}
 Environment=VF_VLAN=${VF_VLAN}
+Environment=ROCE_PCP=${ROCE_PCP}
 Environment=ASSIGN_VF_MACS=${ASSIGN_VF_MACS}
 Environment=VF_MACS=${VF_MACS}
 Environment=REPROBE_VFS=${REPROBE_VFS}

@@ -4,6 +4,7 @@ set -euo pipefail
 PF="${PF:-enp23s0}"
 NUM_VFS="${NUM_VFS:-12}"
 VF_VLAN="${VF_VLAN:-20}"
+ROCE_PCP="${ROCE_PCP:-3}"
 INSTALL_DIR="${INSTALL_DIR:-/lib/modules/$(uname -r)/updates/cx3pro-inbox-rocev2}"
 VLAN10_IF="${VLAN10_IF:-${PF}.10}"
 VLAN20_IF="${VLAN20_IF:-${PF}.20}"
@@ -197,6 +198,7 @@ for i in $(seq 0 $((NUM_VFS - 1))); do
 	driver="$(pci_driver "$bdf" || true)"
 
 	ip -d link show "$PF" | grep -q "vf $i .*vlan $VF_VLAN" && pass "vf $i is assigned VLAN $VF_VLAN" || fail "vf $i is not assigned VLAN $VF_VLAN"
+	ip -d link show "$PF" | grep -q "vf $i .*vlan $VF_VLAN, qos $ROCE_PCP" && pass "vf $i is assigned RoCE PCP $ROCE_PCP" || fail "vf $i is not assigned RoCE PCP $ROCE_PCP"
 	ip -d link show "$PF" | grep -q "vf $i .*link/ether $expected_mac" && pass "vf $i PF policy MAC is stable: $expected_mac" || fail "vf $i PF policy MAC mismatch: expected $expected_mac"
 
 	if [ "$driver" = "vfio-pci" ]; then
@@ -230,6 +232,7 @@ for netdev in "$PF" "$VLAN10_IF" "$VLAN20_IF"; do
 done
 for vlan_if in "$VLAN10_IF" "$VLAN20_IF"; do
 	ip link show "$vlan_if" >/dev/null 2>&1 && pass "$vlan_if exists" || fail "$vlan_if missing"
+	ip -d link show "$vlan_if" 2>/dev/null | grep -q "egress-qos-map { 0:${ROCE_PCP} }" && pass "$vlan_if maps RoCE egress to PCP $ROCE_PCP" || fail "$vlan_if does not map RoCE egress to PCP $ROCE_PCP"
 done
 if [ "$CHECK_VLAN_IPS" = "1" ]; then
 	if [ -n "$VLAN10_IP" ]; then
