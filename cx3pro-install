@@ -90,7 +90,7 @@ echo "=== Installing base dependencies ==="
 run apt-get update
 HEADER_PKG="pve-headers-$(uname -r)"
 apt-cache show "$HEADER_PKG" >/dev/null 2>&1 || HEADER_PKG="proxmox-headers-$(uname -r)"
-run apt_install "$HEADER_PKG" build-essential dkms make gcc perl bc flex bison libelf-dev libssl-dev libdw-dev dwarves rsync unzip wget curl pciutils ethtool zlib1g zlib1g-dev libexpat1 libexpat1-dev python3-pip python3-dev python3-wheel rdma-core ibverbs-providers ibverbs-utils infiniband-diags perftest
+run apt_install "$HEADER_PKG" build-essential dkms make gcc perl bc flex bison libelf-dev libssl-dev libdw-dev dwarves rsync unzip wget curl pciutils ethtool zlib1g zlib1g-dev libexpat1 libexpat1-dev python3-pip python3-dev python3-wheel rdma-core ibverbs-providers ibverbs-utils infiniband-diags perftest nvme-cli
 apt_install libpcap-dev || apt_install libpcap0.8-dev
 
 echo

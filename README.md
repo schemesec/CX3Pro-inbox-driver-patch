@@ -19,7 +19,7 @@ cd CX3Pro-inbox-driver-patch
 reboot
 ```
 
-`cx3pro-install` installs MST/MFT tooling and verifies the CX3 Pro firmware image and current card firmware; firmware burning remains opt-in through `--flash`. The post-boot verifier requires firmware matching `2.42.5x`.
+`cx3pro-install` installs MST/MFT, RDMA test, and `nvme-cli` tooling and verifies the CX3 Pro firmware image and current card firmware; firmware burning remains opt-in through `--flash`. The post-boot verifier requires firmware matching `2.42.5x`.
 
 The installer builds patched inbox `mlx4_core`, `mlx4_en`, and `mlx4_ib`
 modules for the currently running kernel, installs them under
@@ -73,7 +73,7 @@ for intentionally testing an unlisted kernel.
 The repo includes the same style of host-side helper scripts used in
 `mlx-research`, adapted for the inbox-driver patch:
 
-- `cx3pro-install` installs MST/MFT tooling and verifies or explicitly flashes CX3 Pro firmware.
+- `cx3pro-install` installs MST/MFT, RDMA test, and `nvme-cli` tooling and verifies or explicitly flashes CX3 Pro firmware.
 - `install-pve7.sh` builds and installs only the patched inbox `mlx4` modules.
 - `sriov_setup` configures CX3 Pro SR-IOV boot options and the VF VLAN service, including RoCE VLAN PCP `3` by default.
 - `rocesetup` configures PF VLAN interfaces for RoCEv2 testing and maps egress RoCE traffic to VLAN PCP `3` by default.
