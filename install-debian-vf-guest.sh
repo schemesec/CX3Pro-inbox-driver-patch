@@ -146,6 +146,14 @@ run cp "${BUILD_ROOT}/drivers/net/ethernet/mellanox/mlx4/mlx4_en.ko" "$INSTALL_D
 run cp "${BUILD_ROOT}/drivers/infiniband/hw/mlx4/mlx4_ib.ko" "$INSTALL_DIR/"
 run depmod -a "$KVER"
 if command -v update-initramfs >/dev/null 2>&1; then
+	INITRAMFS_MODULES="/etc/initramfs-tools/modules"
+	[ -f "$INITRAMFS_MODULES" ] || run touch "$INITRAMFS_MODULES"
+	for module in mlx4_core mlx4_en mlx4_ib; do
+		if ! grep -qxF "$module" "$INITRAMFS_MODULES"; then
+			log "+ ensure initramfs includes patched ${module}"
+			printf "%s\n" "$module" >> "$INITRAMFS_MODULES"
+		fi
+	done
 	run update-initramfs -u -k "$KVER"
 fi
 
