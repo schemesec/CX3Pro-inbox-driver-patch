@@ -1,0 +1,51 @@
+From: scheme <scheme@localhost>
+Subject: [PATCH] mlx4_ib: expose RoCEv2-only VF without configuring PF port
+
+The PF configures the RoCEv2 UDP destination port.  A guest owning a VF
+must not repeat that PF-level configuration request: the PF rejects it
+and mlx4_ib aborts probe.
+
+With a host running this repository's PF patch and a VF mlx4_core that
+retains the RoCEv2 capability, advertise RoCEv2-only GIDs from the VF
+and leave UDP-port configuration to the PF.
+
+This guest patch requires 0001 and the host-side CX3 Pro inbox patch.
+---
+ drivers/infiniband/hw/mlx4/main.c | 15 ++++++++++-----
+ 1 file changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/infiniband/hw/mlx4/main.c b/drivers/infiniband/hw/mlx4/main.c
+--- a/drivers/infiniband/hw/mlx4/main.c
++++ b/drivers/infiniband/hw/mlx4/main.c
+@@ -2482,11 +2482,15 @@ static int mlx4_port_immutable(struct ib_device *ibdev, u32 port_num,
+ 		immutable->core_cap_flags = RDMA_CORE_PORT_IBA_IB;
+ 		immutable->max_mad_size = IB_MGMT_MAD_SIZE;
+ 	} else {
+-		if (mdev->dev->caps.flags & MLX4_DEV_CAP_FLAG_IBOE)
++		if (mdev->dev->caps.flags2 & MLX4_DEV_CAP_FLAG2_ROCE_V1_V2) {
++			if (mlx4_is_slave(mdev->dev))
++				immutable->core_cap_flags = RDMA_CORE_PORT_IBA_ROCE_UDP_ENCAP;
++			else
++				immutable->core_cap_flags = RDMA_CORE_PORT_IBA_ROCE |
++					RDMA_CORE_PORT_IBA_ROCE_UDP_ENCAP;
++		} else if (mdev->dev->caps.flags & MLX4_DEV_CAP_FLAG_IBOE) {
+ 			immutable->core_cap_flags = RDMA_CORE_PORT_IBA_ROCE;
+-		if (mdev->dev->caps.flags2 & MLX4_DEV_CAP_FLAG2_ROCE_V1_V2)
+-			immutable->core_cap_flags = RDMA_CORE_PORT_IBA_ROCE |
+-				RDMA_CORE_PORT_IBA_ROCE_UDP_ENCAP;
++		}
+ 		immutable->core_cap_flags |= RDMA_CORE_PORT_RAW_PACKET;
+ 		if (immutable->core_cap_flags & (RDMA_CORE_PORT_IBA_ROCE |
+ 		    RDMA_CORE_PORT_IBA_ROCE_UDP_ENCAP))
+@@ -2829,7 +2833,8 @@ static int mlx4_ib_probe(struct auxiliary_device *adev,
+ 			goto err_notif;
+ 		}
+ 	}
+-	if (dev->caps.flags2 & MLX4_DEV_CAP_FLAG2_ROCE_V1_V2) {
++	if (!mlx4_is_slave(dev) &&
++	    dev->caps.flags2 & MLX4_DEV_CAP_FLAG2_ROCE_V1_V2) {
+ 		err = mlx4_config_roce_v2_port(dev, ROCE_V2_UDP_DPORT);
+ 		if (err)
+ 			goto err_notif;
+-- 
+2.47.2

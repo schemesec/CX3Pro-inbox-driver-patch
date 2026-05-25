@@ -170,3 +170,11 @@ Previously observed and fixed:
   `ib_free_cq` / `rdma_restrack_clean` WARNs through `mlx4_ib_remove`.
   Commit `8dea678` fixes this by destroying nested RoCEv2 GSI QPs for all SQP
   owners, including tunnel/proxy QPs, before CQ teardown.
+
+## Debian passthrough VF validation, 2026-05-24
+
+- VM 100 on `pvs3` has VF11 (`0000:17:01.4`, MAC `02:9a:0a:d0:90:0b`, VLAN 20, QoS 3) passed through to Debian 13 kernel `6.12.88+deb13-amd64`.
+- Stock guest `mlx4_ib` exposed only `IB/RoCE v1` GIDs. Three minimal guest changes were required: retain the VF RoCEv2 capability in `mlx4_core`, do not issue PF-owned RoCEv2 UDP port configuration from guest `mlx4_ib` while exposing RoCEv2-only GIDs, and prevent guest `mlx4_en` from requesting PF-owned global-pause state.
+- Loading only the capability change reproduced a real failure: the guest `mlx4_ib` probe failed because the VF attempted PF-owned RoCEv2 port configuration. That partial patch was not retained as a working state.
+- Using `mlx4_en pfctx=8 pfcrx=8` suppressed PF global-pause denial but failed simultaneous RDMA-CM connection tests. It is not the selected solution.
+- With all three minimal guest patches loaded, `ens16` exposed IPv4 RoCEv2 GID index `1` for `192.168.20.171`, host PF PFC remained configured on PCP 3, guest module reload produced no new host denial or warning entries, and a single-shell concurrent `ib_write_bw` test from `pvs1` to the guest VF passed at `50.83 Gbit/sec` with IPv4-mapped RoCEv2 GIDs.

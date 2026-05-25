@@ -1,0 +1,38 @@
+From: scheme <scheme@localhost>
+Subject: [PATCH] mlx4_en: do not request physical flow control from a VF
+
+The PF owns physical Ethernet flow-control state.  When mlx4_en loads in a
+guest VF with its normal default profile, it requests global RX/TX pause.
+The PF correctly rejects that operation while retaining the configured
+RoCE PFC policy, leaving unnecessary host diagnostics on every VF reload.
+
+For a slave/VF, request neither global pause nor physical PFC from
+mlx4_en.  VLAN PCP and physical PFC remain configured on the PF.
+Preserve existing behavior for the PF and for non-multifunction devices.
+
+This guest patch requires the host PF to configure the intended RoCE PFC
+policy.
+---
+ drivers/net/ethernet/mellanox/mlx4/en_main.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx4/en_main.c b/drivers/net/ethernet/mellanox/mlx4/en_main.c
+--- a/drivers/net/ethernet/mellanox/mlx4/en_main.c
++++ b/drivers/net/ethernet/mellanox/mlx4/en_main.c
+@@ -163,10 +163,10 @@ static void mlx4_en_get_profile(struct mlx4_en_dev *mdev)
+ 		params->udp_rss = 0;
+ 	}
+ 	for (i = 1; i <= MLX4_MAX_PORTS; i++) {
+-		params->prof[i].rx_pause = !(pfcrx || pfctx);
+-		params->prof[i].rx_ppp = pfcrx;
+-		params->prof[i].tx_pause = !(pfcrx || pfctx);
+-		params->prof[i].tx_ppp = pfctx;
++		params->prof[i].rx_pause = !mlx4_is_slave(mdev->dev) && !(pfcrx || pfctx);
++		params->prof[i].rx_ppp = mlx4_is_slave(mdev->dev) ? 0 : pfcrx;
++		params->prof[i].tx_pause = !mlx4_is_slave(mdev->dev) && !(pfcrx || pfctx);
++		params->prof[i].tx_ppp = mlx4_is_slave(mdev->dev) ? 0 : pfctx;
+ 		if (mlx4_low_memory_profile()) {
+ 			params->prof[i].tx_ring_size = MLX4_EN_MIN_TX_SIZE;
+ 			params->prof[i].rx_ring_size = MLX4_EN_MIN_RX_SIZE;
+-- 
+2.47.2

@@ -75,6 +75,9 @@ The repo includes the same style of host-side helper scripts used in
 
 - `cx3pro-install` installs MST/MFT, RDMA test, and `nvme-cli` tooling and verifies or explicitly flashes CX3 Pro firmware.
 - `install-pve7.sh` builds and installs only the patched inbox `mlx4` modules.
+- `install-debian-vf-guest.sh` builds and installs the minimal Debian guest
+  `mlx4_core`, `mlx4_en`, and `mlx4_ib` patches required when a CX3 Pro VF is
+  passed through to a VM. It requires the host-side patch to be active.
 - `sriov_setup` configures CX3 Pro SR-IOV boot options and the VF VLAN service, including RoCE VLAN PCP `3` by default.
 - `rocesetup` configures PF VLAN interfaces for RoCEv2 testing, maps egress RoCE traffic to VLAN PCP `3`, and enables PFC for that priority by default.
 - `verify-pve7.sh` checks module resolution, RoCEv2 GIDs, VF VLAN/MAC state,
@@ -116,3 +119,30 @@ Those checks are there to catch real driver regressions; they are not masking
 or filtering driver failures to make the patch look clean.
 
 `install-stock-rdma-pve7.sh` from `mlx-research` is intentionally not copied into this repository: this inbox patch already leaves current inbox `rdma_cm`, `nvme-rdma`, and `nvmet-rdma` in place.
+
+## Debian guest VF passthrough
+
+The host patch alone is sufficient for host-owned VFs. A VF passed through to
+a Debian VM loads the guest's own `mlx4` modules, so the guest also needs the
+minimal patches in `patches/guest/`.
+
+Inside a Debian guest with the CX3 Pro VF attached:
+
+```sh
+git clone https://github.com/schemesec/CX3Pro-inbox-driver-patch.git
+cd CX3Pro-inbox-driver-patch
+./install-debian-vf-guest.sh
+reboot
+```
+
+The guest patches:
+
+- retain the RoCEv2 capability reported to a VF when its host PF is patched;
+- expose RoCEv2-only VF GIDs and leave PF-level UDP port configuration to the
+  host;
+- stop a VF from requesting physical global-pause state, which remains owned
+  by the PF configured for PCP/PFC.
+
+The script builds from the Debian source package matching the running guest
+kernel and installs only `mlx4_core`, `mlx4_en`, and `mlx4_ib` below
+`/lib/modules/<kernel>/updates/cx3pro-vf-rocev2`.

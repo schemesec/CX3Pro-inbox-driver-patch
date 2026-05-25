@@ -1,0 +1,34 @@
+From: scheme <scheme@localhost>
+Subject: [PATCH] mlx4: retain RoCEv2 capability for VF behind patched PF
+
+The inbox mlx4 VF path clears MLX4_FLAG_ROCE_V1_V2 during capability
+discovery because an unmodified PF does not support all of the VF RoCEv2
+address programming path.  When the PF runs this repository's host patch,
+it accepts and preserves MLX4_SET_PORT_ROCE_ADDR including the GID type.
+
+Do not hide the reported RoCEv2 capability in the VF guest.  This allows
+the stock mlx4_ib RoCEv2 implementation in the guest to expose RoCEv2 GIDs
+and program RoCEv2 QPs through the patched PF.
+
+This guest patch requires the host-side CX3 Pro inbox patch.
+---
+ drivers/net/ethernet/mellanox/mlx4/fw.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx4/fw.c b/drivers/net/ethernet/mellanox/mlx4/fw.c
+--- a/drivers/net/ethernet/mellanox/mlx4/fw.c
++++ b/drivers/net/ethernet/mellanox/mlx4/fw.c
+@@ -1398,7 +1398,10 @@ static void disable_unsupported_roce_caps(void *buf)
+ 	flags &= ~(1UL << 24);
+ 	MLX4_PUT(buf, flags, QUERY_DEV_CAP_EXT_2_FLAGS_OFFSET);
+ 	MLX4_GET(flags, buf, QUERY_DEV_CAP_BMME_FLAGS_OFFSET);
+-	flags &= ~(MLX4_FLAG_ROCE_V1_V2);
++	/*
++	 * Keep RoCEv2 for VFs when the PF accepts MLX4_SET_PORT_ROCE_ADDR
++	 * and retains its GID type, as supplied by the host-side patch.
++	 */
+ 	MLX4_PUT(buf, flags, QUERY_DEV_CAP_BMME_FLAGS_OFFSET);
+ }
+ 
+-- 
+2.47.2
