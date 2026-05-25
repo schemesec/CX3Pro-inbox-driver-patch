@@ -87,7 +87,7 @@ if [ "$NO_APT" -eq 0 ]; then
 	run apt-get update
 	run env DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades \
 		build-essential bc flex bison libelf-dev libssl-dev dwarves \
-		"linux-headers-${KVER}" "${SOURCE_PKG}=${IMAGE_VERSION}"
+		"linux-headers-${KVER}" nvme-cli "${SOURCE_PKG}=${IMAGE_VERSION}"
 fi
 
 need_file "/lib/modules/${KVER}/build/Makefile"

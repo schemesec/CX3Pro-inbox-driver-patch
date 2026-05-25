@@ -146,4 +146,4 @@ The guest patches:
 The script builds from the Debian source package matching the running guest
 kernel and installs only `mlx4_core`, `mlx4_en`, and `mlx4_ib` below
 `/lib/modules/<kernel>/updates/cx3pro-vf-rocev2`. It also ensures all three modules are included
-in the guest initramfs so early VF probe cannot mix patched and stock modules.
+in the guest initramfs so early VF probe cannot mix patched and stock modules. The dependency path installs `nvme-cli` so stock guest `nvme-rdma` can be validated over the patched VF.
