@@ -40,12 +40,13 @@ not the ported OFED stack.
 ## Kernel upgrades
 
 The patch is intended to be source-level portable across nearby Proxmox kernels,
-but every kernel still needs its own module build. On an upgraded host, run an
-apply-only check first:
+but every kernel still needs its own module build. On an upgraded host, run the preflight first, then an
+apply-only check:
 
 ```sh
 cd /root/CX3Pro-inbox-driver-patch
 git pull
+./preflight-upgrade.sh
 ./install-pve7.sh --apply-check-only --no-apt
 ```
 
@@ -74,6 +75,10 @@ The repo includes the same style of host-side helper scripts used in
 `mlx-research`, adapted for the inbox-driver patch:
 
 - `cx3pro-install` installs MST/MFT, RDMA test, and `nvme-cli` tooling and verifies or explicitly flashes CX3 Pro firmware.
+- `preflight-upgrade.sh` reports whether the running kernel has the required
+  headers/build inputs, whether patched `mlx4` modules resolve from the
+  override directory, and whether stock `rdma_cm`, `nvme-rdma`, and
+  `nvmet-rdma` remain from the current kernel tree.
 - `install-pve7.sh` builds and installs only the patched inbox `mlx4` modules.
 - `install-debian-vf-guest.sh` builds and installs the minimal Debian guest
   `mlx4_core`, `mlx4_en`, and `mlx4_ib` patches required when a CX3 Pro VF is

@@ -129,6 +129,7 @@ Validated:
   read-only identify/size check completed, the controller disconnected cleanly,
   and a pvs3 kernel warning scan returned no entries.
 
+- `preflight-upgrade.sh` passed on kernel `7.0.2-6-pve` with zero warnings and zero failures: `mlx4_core`, `mlx4_en`, and `mlx4_ib` resolved from `updates/cx3pro-inbox-rocev2`, while `rdma_cm`, `nvme_rdma`, and `nvmet_rdma` remained stock inbox modules from the kernel tree.
 - After reboot into kernel `7.0.2-6-pve`, the compact VF RoCEv2 GID layout was validated with `NUM_VFS=12`, `MLX4_ROCE_PF_GIDS=8`, and two RoCEv2 GIDs per host-owned VF. `verify-pve7.sh` passed with stable VF MACs, VLAN 20 on all twelve VFs, PF VLAN IPs `192.168.10.56/24` and `192.168.20.56/24`, module resolution from `updates/cx3pro-inbox-rocev2`, and no bounded kernel warning matches. Sequential cross-host RDMA-CM RoCEv2 `ib_write_bw` from pvs1 `192.168.20.50` to pvs3 VF IPs `192.168.20.160-171` passed for all twelve VFs using local VF GID index `1`; results were 49.41-50.61 Gbit/sec average with IPv4-mapped RoCEv2 GIDs. The test used coupled listener/client orchestration with a three-second listener warm-up so approval delay could not invalidate the RDMA-CM run. A post-test pvs3 kernel scan for `BUG`, `Oops`, `WARNING`, `Call Trace`, `Unknown symbol`, `disagrees`, `__warn`, `Bad wc`, `Completion with error`, `Failed status`, and `vhcr command:0x3a` returned no entries.
 
 ## Fresh rollback validation, 2026-05-23
