@@ -1,0 +1,21 @@
+=== CX3 Pro inbox RoCEv2 VF patch installer ===
+repo=/root/CX3Pro-inbox-driver-patch
+kernel=7.0.2-6-pve
+jobs=12
+build_root=/root/cx3pro-inbox-build
+install_dir=/lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2
+tested_kernels=7.0.2-2-pve 7.0.2-6-pve
+log=/root/CX3Pro-inbox-driver-patch/logs/install-20260531-003750.log
+
++ mkdir -p /root/cx3pro-inbox-build
++ git -C /root/cx3pro-inbox-build/pve-kernel fetch --depth 1 origin
+From https://github.com/proxmox/pve-kernel
+ + 87f22e5...3ed8dd2 master     -> origin/master  (forced update)
++ git -C /root/cx3pro-inbox-build/pve-kernel reset --hard FETCH_HEAD
+HEAD is now at 3ed8dd2 update ABI file for 7.0.6-2-pve (amd64)
++ git -C /root/cx3pro-inbox-build/pve-kernel submodule set-url submodules/ubuntu-kernel https://git.proxmox.com/git/mirror_ubuntu-kernels.git
+Synchronizing submodule url for 'submodules/ubuntu-kernel'
++ git -C /root/cx3pro-inbox-build/pve-kernel submodule set-url submodules/zfsonlinux https://git.proxmox.com/git/zfsonlinux.git
++ git -C /root/cx3pro-inbox-build/pve-kernel submodule update --init submodules/ubuntu-kernel
+fatal: remote error: upload-pack: not our ref 148c038ca663f09720ebdaa77e5c63d0e8da4573
+fatal: Fetched in submodule path 'submodules/ubuntu-kernel', but it did not contain 148c038ca663f09720ebdaa77e5c63d0e8da4573. Direct fetching of that commit failed.

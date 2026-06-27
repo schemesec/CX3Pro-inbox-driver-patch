@@ -69,6 +69,47 @@ Use `--strict-kernel` only when you want the installer to refuse kernels not
 listed in `TESTED_KERNELS`. `--force-kernel` is kept as a compatibility alias
 for intentionally testing an unlisted kernel.
 
+For kernels already listed in `TESTED_KERNELS`, `install-pve7.sh` auto-selects
+the validated Proxmox packaging ref when one is known. For a new Proxmox kernel,
+find the exact pve-kernel packaging commit for that kernel first and set
+`PVE_KERNEL_REF` explicitly before apply/build/install checks. This avoids
+accidentally building against a newer repository default branch than the host is
+actually running.
+
+Example discovery step for a new kernel:
+
+```sh
+./find-pve-kernel-ref "$(uname -r)"
+```
+
+For a safe non-installing check of the current host:
+
+```sh
+RUN_BUILD=0 ./port-update-check
+```
+
+Use `RUN_BUILD=1` when you also want to prove the modules still rebuild for
+the current kernel. The wrapper still does not install modules or reboot.
+
+The lifecycle validation gates are stricter than `port-update-check`. A kernel
+or package update is not considered validated until the matching gate passes
+with cross-host VF RDMA-CM traffic:
+
+```sh
+# After rebooting into the patched module override.
+CLIENT_SSH=root@192.168.1.50 CLIENT_DEV=rocep23s0 NUM_VFS=12 \
+  ./port-validation --stage post-reboot
+
+# After apt upgrade, rebuilding/installing the override modules, and rebooting.
+CLIENT_SSH=root@192.168.1.50 CLIENT_DEV=rocep23s0 NUM_VFS=12 \
+  ./port-validation --stage post-upgrade
+```
+
+`port-validation` does not reboot, upgrade packages, install modules, detach VM
+disks, or run storage writes. It validates the currently booted host and fails
+unless the VF RDMA-CM traffic test runs successfully, unless `RUN_RDMACM=0` is
+set deliberately for a non-traffic investigation.
+
 ## Setup scripts
 
 The repo includes the same style of host-side helper scripts used in
@@ -79,6 +120,17 @@ The repo includes the same style of host-side helper scripts used in
   headers/build inputs, whether patched `mlx4` modules resolve from the
   override directory, and whether stock `rdma_cm`, `nvme-rdma`, and
   `nvmet-rdma` remain from the current kernel tree.
+- `find-pve-kernel-ref` searches the Proxmox `pve-kernel` packaging history
+  for the commit matching a target kernel and prints the pinned
+  `ubuntu-kernel` and `zfsonlinux` gitlinks. Use it before testing an unlisted
+  Proxmox kernel.
+- `port-update-check` runs the safe, non-installing update-readiness flow:
+  preflight, ref discovery, apply-check, optional build-only, verifier, and
+  optional NVMe/RDMA VM lab status. It does not install modules, reboot, detach
+  disks, or run storage write tests.
+- `port-validation` is the post-reboot/post-upgrade validation gate. It wraps
+  `port-update-check` and the cross-host VF RDMA-CM traffic test so reboot and
+  upgrade testing cannot be mistaken for a control-plane-only verifier pass.
 - `install-pve7.sh` builds and installs only the patched inbox `mlx4` modules.
 - `install-debian-vf-guest.sh` builds and installs the minimal Debian guest
   `mlx4_core`, `mlx4_en`, and `mlx4_ib` patches required when a CX3 Pro VF is
@@ -91,6 +143,10 @@ The repo includes the same style of host-side helper scripts used in
   `/etc/network/interfaces` so Proxmox can display them as managed config.
 - `test_vf_rdmacm` runs coupled pvs3-listener/pvs1-client VF `ib_write_bw`
   tests so approval delay cannot invalidate RDMA-CM results.
+- `nvmet-vm-lab` creates, connects, attaches, checks, and tears down a
+  disposable `null_blk`-backed NVMe/RDMA target for VM disk-path validation.
+  It defaults to status/setup operations and refuses guest writes unless
+  `ALLOW_WRITE=1` is explicitly set.
 - `rollback-pve7.sh` restores a previously backed-up inbox module directory and updates initramfs.
 
 Example pvs3 flow after the first reboot:
@@ -124,6 +180,56 @@ Those checks are there to catch real driver regressions; they are not masking
 or filtering driver failures to make the patch look clean.
 
 `install-stock-rdma-pve7.sh` from `mlx-research` is intentionally not copied into this repository: this inbox patch already leaves current inbox `rdma_cm`, `nvme-rdma`, and `nvmet-rdma` in place.
+
+## Disposable NVMe/RDMA VM disk lab
+
+`nvmet-vm-lab` is for repeatable VM storage-path validation without using real
+storage as the target. The default topology matches the current lab:
+
+- target: pvs1 `192.168.20.50:4520`
+- initiator/hypervisor: pvs3
+- VM: pvs3 VM `100`
+- target backing: pvs1 `/dev/nullb0`
+- VM slot: `scsi1`
+
+Typical setup:
+
+```sh
+./nvmet-vm-lab setup-target
+./nvmet-vm-lab connect
+./nvmet-vm-lab attach-vm
+./nvmet-vm-lab status
+```
+
+If pvs3 does not have SSH key auth to pvs1, run from a trusted admin shell with
+an explicit SSH command:
+
+```sh
+SSHPASS=... SSH_BIN='sshpass -e ssh' \
+SSH_OPTS='-o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=accept-new' \
+  ./nvmet-vm-lab status
+```
+
+The bounded guest smoke test is intentionally small and write-gated:
+
+```sh
+ALLOW_WRITE=1 SMOKE_MIB=64 ./nvmet-vm-lab guest-smoke
+```
+
+Do not use this helper for large endurance testing unless the backing device,
+expected write volume, runtime, and cleanup behavior have been explicitly
+reviewed first. The default target is `null_blk`, so it validates the
+transport/driver/VM plumbing but does not provide persistent VM storage.
+
+Cleanup when the lab disk should be removed:
+
+```sh
+./nvmet-vm-lab teardown
+```
+
+`detach-vm` and `teardown` only remove the configured VM slot when it matches
+the expected live NVMe/RDMA by-id path. If the controller is already gone and
+manual cleanup is required, set `FORCE_DETACH=1` after checking the VM config.
 
 ## Debian guest VF passthrough
 

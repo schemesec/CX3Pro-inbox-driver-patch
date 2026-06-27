@@ -1,0 +1,489 @@
+=== CX3 Pro inbox RoCEv2 VF patch installer ===
+repo=/root/CX3Pro-inbox-driver-patch
+kernel=7.0.2-6-pve
+jobs=12
+build_root=/root/cx3pro-inbox-build
+install_dir=/lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2
+tested_kernels=7.0.2-2-pve 7.0.2-6-pve
+log=/root/CX3Pro-inbox-driver-patch/logs/install-20260522-233040.log
+
++ apt-get update
+Hit:1 http://security.debian.org/debian-security trixie-security InRelease
+Hit:2 http://deb.debian.org/debian trixie InRelease
+Get:3 http://deb.debian.org/debian trixie-updates InRelease [47.3 kB]
+Hit:4 http://download.proxmox.com/debian/pve trixie InRelease
+Fetched 47.3 kB in 0s (341 kB/s)
+Reading package lists...
++ env DEBIAN_FRONTEND=noninteractive apt-get install -y git build-essential bc flex bison libelf-dev libssl-dev libdw-dev dwarves rsync
+Reading package lists...
+Building dependency tree...
+Reading state information...
+git is already the newest version (1:2.47.3-0+deb13u1).
+build-essential is already the newest version (12.12).
+bc is already the newest version (1.07.1-4).
+The following packages were automatically installed and are no longer required:
+  proxmox-kernel-6.14.11-5-pve-signed proxmox-kernel-6.17.9-1-pve-signed
+Use 'apt autoremove' to remove them.
+The following additional packages will be installed:
+  libfl-dev libfl2 liblzma-dev libssl3t64 libzstd-dev m4 openssl
+  openssl-provider-legacy pahole
+Suggested packages:
+  bison-doc flex-doc liblzma-doc libssl-doc m4-doc
+The following NEW packages will be installed:
+  bison dwarves flex libdw-dev libelf-dev libfl-dev libfl2 liblzma-dev
+  libssl-dev libzstd-dev m4 pahole
+The following packages will be upgraded:
+  libssl3t64 openssl openssl-provider-legacy rsync
+4 upgraded, 12 newly installed, 0 to remove and 88 not upgraded.
+Need to get 11.1 MB of archives.
+After this operation, 28.0 MB of additional disk space will be used.
+Get:1 http://deb.debian.org/debian trixie/main amd64 m4 amd64 1.4.19-8 [294 kB]
+Get:2 http://security.debian.org/debian-security trixie-security/main amd64 rsync amd64 3.4.1+ds1-5+deb13u3 [433 kB]
+Get:3 http://deb.debian.org/debian trixie/main amd64 flex amd64 2.6.4-8.2+b4 [423 kB]
+Get:4 http://deb.debian.org/debian trixie/main amd64 openssl-provider-legacy amd64 3.5.6-1~deb13u1 [312 kB]
+Get:5 http://deb.debian.org/debian trixie/main amd64 libssl3t64 amd64 3.5.6-1~deb13u1 [2448 kB]
+Get:6 http://deb.debian.org/debian trixie/main amd64 bison amd64 2:3.8.2+dfsg-1+b2 [1170 kB]
+Get:7 http://deb.debian.org/debian trixie/main amd64 pahole amd64 1.30-1 [259 kB]
+Get:8 http://deb.debian.org/debian trixie/main amd64 dwarves all 1.30-1 [13.8 kB]
+Get:9 http://deb.debian.org/debian trixie/main amd64 libzstd-dev amd64 1.5.7+dfsg-1 [371 kB]
+Get:10 http://deb.debian.org/debian trixie/main amd64 libelf-dev amd64 0.192-4 [93.2 kB]
+Get:11 http://deb.debian.org/debian trixie/main amd64 liblzma-dev amd64 5.8.1-1 [348 kB]
+Get:12 http://deb.debian.org/debian trixie/main amd64 libdw-dev amd64 0.192-4 [335 kB]
+Get:13 http://deb.debian.org/debian trixie/main amd64 libfl2 amd64 2.6.4-8.2+b4 [84.3 kB]
+Get:14 http://deb.debian.org/debian trixie/main amd64 libfl-dev amd64 2.6.4-8.2+b4 [85.6 kB]
+Get:15 http://deb.debian.org/debian trixie/main amd64 libssl-dev amd64 3.5.6-1~deb13u1 [2958 kB]
+Get:16 http://deb.debian.org/debian trixie/main amd64 openssl amd64 3.5.6-1~deb13u1 [1503 kB]
+apt-listchanges: Reading changelogs...
+Fetched 11.1 MB in 0s (35.5 MB/s)
+Selecting previously unselected package m4.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 138040 files and directories currently installed.)
+Preparing to unpack .../archives/m4_1.4.19-8_amd64.deb ...
+Unpacking m4 (1.4.19-8) ...
+Selecting previously unselected package flex.
+Preparing to unpack .../flex_2.6.4-8.2+b4_amd64.deb ...
+Unpacking flex (2.6.4-8.2+b4) ...
+Preparing to unpack .../openssl-provider-legacy_3.5.6-1~deb13u1_amd64.deb ...
+Unpacking openssl-provider-legacy (3.5.6-1~deb13u1) over (3.5.5-1~deb13u2) ...
+Setting up openssl-provider-legacy (3.5.6-1~deb13u1) ...
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 138223 files and directories currently installed.)
+Preparing to unpack .../libssl3t64_3.5.6-1~deb13u1_amd64.deb ...
+Unpacking libssl3t64:amd64 (3.5.6-1~deb13u1) over (3.5.5-1~deb13u2) ...
+Setting up libssl3t64:amd64 (3.5.6-1~deb13u1) ...
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 138223 files and directories currently installed.)
+Preparing to unpack .../00-rsync_3.4.1+ds1-5+deb13u3_amd64.deb ...
+Unpacking rsync (3.4.1+ds1-5+deb13u3) over (3.4.1+ds1-5+deb13u1) ...
+Selecting previously unselected package bison.
+Preparing to unpack .../01-bison_2%3a3.8.2+dfsg-1+b2_amd64.deb ...
+Unpacking bison (2:3.8.2+dfsg-1+b2) ...
+Selecting previously unselected package pahole.
+Preparing to unpack .../02-pahole_1.30-1_amd64.deb ...
+Unpacking pahole (1.30-1) ...
+Selecting previously unselected package dwarves.
+Preparing to unpack .../03-dwarves_1.30-1_all.deb ...
+Unpacking dwarves (1.30-1) ...
+Selecting previously unselected package libzstd-dev:amd64.
+Preparing to unpack .../04-libzstd-dev_1.5.7+dfsg-1_amd64.deb ...
+Unpacking libzstd-dev:amd64 (1.5.7+dfsg-1) ...
+Selecting previously unselected package libelf-dev:amd64.
+Preparing to unpack .../05-libelf-dev_0.192-4_amd64.deb ...
+Unpacking libelf-dev:amd64 (0.192-4) ...
+Selecting previously unselected package liblzma-dev:amd64.
+Preparing to unpack .../06-liblzma-dev_5.8.1-1_amd64.deb ...
+Unpacking liblzma-dev:amd64 (5.8.1-1) ...
+Selecting previously unselected package libdw-dev:amd64.
+Preparing to unpack .../07-libdw-dev_0.192-4_amd64.deb ...
+Unpacking libdw-dev:amd64 (0.192-4) ...
+Selecting previously unselected package libfl2:amd64.
+Preparing to unpack .../08-libfl2_2.6.4-8.2+b4_amd64.deb ...
+Unpacking libfl2:amd64 (2.6.4-8.2+b4) ...
+Selecting previously unselected package libfl-dev:amd64.
+Preparing to unpack .../09-libfl-dev_2.6.4-8.2+b4_amd64.deb ...
+Unpacking libfl-dev:amd64 (2.6.4-8.2+b4) ...
+Selecting previously unselected package libssl-dev:amd64.
+Preparing to unpack .../10-libssl-dev_3.5.6-1~deb13u1_amd64.deb ...
+Unpacking libssl-dev:amd64 (3.5.6-1~deb13u1) ...
+Preparing to unpack .../11-openssl_3.5.6-1~deb13u1_amd64.deb ...
+Unpacking openssl (3.5.6-1~deb13u1) over (3.5.5-1~deb13u2) ...
+Setting up libzstd-dev:amd64 (1.5.7+dfsg-1) ...
+Setting up m4 (1.4.19-8) ...
+Setting up libssl-dev:amd64 (3.5.6-1~deb13u1) ...
+Setting up libelf-dev:amd64 (0.192-4) ...
+Setting up libfl2:amd64 (2.6.4-8.2+b4) ...
+Setting up pahole (1.30-1) ...
+Setting up liblzma-dev:amd64 (5.8.1-1) ...
+Setting up bison (2:3.8.2+dfsg-1+b2) ...
+update-alternatives: using /usr/bin/bison.yacc to provide /usr/bin/yacc (yacc) in auto mode
+Setting up openssl (3.5.6-1~deb13u1) ...
+Setting up rsync (3.4.1+ds1-5+deb13u3) ...
+rsync.service is a disabled or a static unit not running, not starting it.
+Setting up flex (2.6.4-8.2+b4) ...
+Setting up libdw-dev:amd64 (0.192-4) ...
+Setting up libfl-dev:amd64 (2.6.4-8.2+b4) ...
+Setting up dwarves (1.30-1) ...
+Processing triggers for man-db (2.13.1-1) ...
+Processing triggers for libc-bin (2.41-12+deb13u3) ...
++ mkdir -p /root/cx3pro-inbox-build
++ git -C /root/cx3pro-inbox-build/pve-kernel fetch --depth 1 origin
++ git -C /root/cx3pro-inbox-build/pve-kernel reset --hard FETCH_HEAD
+HEAD is now at 87f22e5 update ABI file for 7.0.2-6-pve (amd64)
++ git -C /root/cx3pro-inbox-build/pve-kernel submodule set-url submodules/ubuntu-kernel https://git.proxmox.com/git/mirror_ubuntu-kernels.git
+Synchronizing submodule url for 'submodules/ubuntu-kernel'
++ git -C /root/cx3pro-inbox-build/pve-kernel submodule set-url submodules/zfsonlinux https://git.proxmox.com/git/zfsonlinux.git
++ git -C /root/cx3pro-inbox-build/pve-kernel submodule update --init submodules/ubuntu-kernel
++ cp /root/CX3Pro-inbox-driver-patch/patches/kernel/0066-mlx4-preserve-rocev2-gid-type-for-sriov-vfs.patch /root/cx3pro-inbox-build/pve-kernel/patches/kernel/
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel reset --hard HEAD
+HEAD is now at 69bb061d6b71 UBUNTU: Ubuntu-7.0.0-18.18
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel clean -fdx
+Removing .config
+Removing scripts/basic/.fixdep.cmd
+Removing scripts/basic/fixdep
+Removing scripts/kconfig/.conf.o.cmd
+Removing scripts/kconfig/.confdata.o.cmd
+Removing scripts/kconfig/.expr.o.cmd
+Removing scripts/kconfig/conf.o
+Removing scripts/kconfig/confdata.o
+Removing scripts/kconfig/expr.o
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel apply --check /root/CX3Pro-inbox-driver-patch/patches/kernel/0066-mlx4-preserve-rocev2-gid-type-for-sriov-vfs.patch
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel apply /root/CX3Pro-inbox-driver-patch/patches/kernel/0066-mlx4-preserve-rocev2-gid-type-for-sriov-vfs.patch
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel diff --check
++ cp /boot/config-7.0.2-6-pve /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/.config
++ make -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel olddefconfig
+make: Entering directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel'
+  HOSTCC  scripts/basic/fixdep
+  HOSTCC  scripts/kconfig/conf.o
+  HOSTCC  scripts/kconfig/confdata.o
+  HOSTCC  scripts/kconfig/expr.o
+  LEX     scripts/kconfig/lexer.lex.c
+  YACC    scripts/kconfig/parser.tab.[ch]
+  HOSTCC  scripts/kconfig/lexer.lex.o
+  HOSTCC  scripts/kconfig/menu.o
+  HOSTCC  scripts/kconfig/parser.tab.o
+  HOSTCC  scripts/kconfig/preprocess.o
+  HOSTCC  scripts/kconfig/symbol.o
+  HOSTCC  scripts/kconfig/util.o
+  HOSTLD  scripts/kconfig/conf
+security/apparmor/Kconfig:120:warning: multi-line strings not supported
+#
+# configuration written to .config
+#
+make: Leaving directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel'
++ make -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel prepare modules_prepare LOCALVERSION=-6-pve -j12
+make: Entering directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel'
+  UPD     arch/x86/include/generated/asm/cpufeaturemasks.h
+  WRAP    arch/x86/include/generated/uapi/asm/bpf_perf_event.h
+  WRAP    arch/x86/include/generated/uapi/asm/errno.h
+  WRAP    arch/x86/include/generated/uapi/asm/fcntl.h
+  WRAP    arch/x86/include/generated/uapi/asm/ioctl.h
+  WRAP    arch/x86/include/generated/uapi/asm/ioctls.h
+  WRAP    arch/x86/include/generated/uapi/asm/ipcbuf.h
+  WRAP    arch/x86/include/generated/uapi/asm/param.h
+  WRAP    arch/x86/include/generated/uapi/asm/poll.h
+  WRAP    arch/x86/include/generated/uapi/asm/resource.h
+  WRAP    arch/x86/include/generated/uapi/asm/socket.h
+  UPD     include/generated/uapi/linux/version.h
+  WRAP    arch/x86/include/generated/uapi/asm/sockios.h
+  WRAP    arch/x86/include/generated/uapi/asm/termbits.h
+  WRAP    arch/x86/include/generated/uapi/asm/termios.h
+  WRAP    arch/x86/include/generated/uapi/asm/types.h
+  UPD     include/generated/compile.h
+  SYSHDR  arch/x86/include/generated/uapi/asm/unistd_32.h
+  SYSHDR  arch/x86/include/generated/uapi/asm/unistd_64.h
+  SYSHDR  arch/x86/include/generated/uapi/asm/unistd_x32.h
+  SYSTBL  arch/x86/include/generated/asm/syscalls_32.h
+  WRAP    arch/x86/include/generated/asm/early_ioremap.h
+  WRAP    arch/x86/include/generated/asm/fprobe.h
+  SYSHDR  arch/x86/include/generated/asm/unistd_32_ia32.h
+  WRAP    arch/x86/include/generated/asm/mcs_spinlock.h
+  WRAP    arch/x86/include/generated/asm/mmzone.h
+  WRAP    arch/x86/include/generated/asm/irq_regs.h
+  WRAP    arch/x86/include/generated/asm/kmap_size.h
+  DESCEND objtool
+  SYSHDR  arch/x86/include/generated/asm/unistd_64_x32.h
+  WRAP    arch/x86/include/generated/asm/local64.h
+  WRAP    arch/x86/include/generated/asm/mmiowb.h
+  WRAP    arch/x86/include/generated/asm/module.lds.h
+  SYSTBL  arch/x86/include/generated/asm/syscalls_64.h
+  WRAP    arch/x86/include/generated/asm/rwonce.h
+  HOSTCC  arch/x86/tools/relocs_32.o
+  UPD     include/config/kernel.release
+  DESCEND bpf/resolve_btfids
+  HYPERCALLS arch/x86/include/generated/asm/xen-hypercalls.h
+  HOSTCC  arch/x86/tools/relocs_64.o
+  UPD     include/generated/utsrelease.h
+  HOSTCC  arch/x86/tools/relocs_common.o
+  HOSTCC  arch/x86/tools/vdso2c
+  HOSTCC  scripts/kallsyms
+  HOSTCC  scripts/sorttable.o
+  HOSTCC  scripts/gendwarfksyms/gendwarfksyms.o
+  HOSTCC  scripts/ipe/polgen/polgen
+  MKDIR     /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/
+  HOSTCC  scripts/selinux/mdp/mdp
+  MKDIR     /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids//libsubcmd
+  HOSTCC  scripts/gendwarfksyms/cache.o
+  HOSTCC  scripts/elf-parse.o
+  GEN     /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/bpf_helper_defs.h
+  HOSTCC  scripts/asn1_compiler
+  HOSTCC  scripts/gendwarfksyms/die.o
+  HOSTCC  scripts/gendwarfksyms/dwarf.o
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf//include/bpf/bpf.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf//include/bpf/libbpf.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf//include/bpf/btf.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf//include/bpf/libbpf_common.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf//include/bpf/libbpf_legacy.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf//include/bpf/bpf_helpers.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf//include/bpf/bpf_tracing.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf//include/bpf/bpf_endian.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf//include/bpf/bpf_core_read.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf//include/bpf/skel_internal.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf//include/bpf/libbpf_version.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf//include/bpf/usdt.bpf.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf//include/bpf/bpf_helper_defs.h
+  HOSTCC  scripts/gendwarfksyms/kabi.o
+  INSTALL libbpf_headers
+  HOSTCC  scripts/sign-file
+  HOSTCC  scripts/insert-sys-cert
+  HOSTLD  arch/x86/tools/relocs
+  HOSTCC  scripts/gendwarfksyms/symbols.o
+  HOSTCC  scripts/tracepoint-update.o
+  HOSTCC  scripts/gendwarfksyms/types.o
+  HOSTLD  scripts/sorttable
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libsubcmd//include/subcmd/exec-cmd.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libsubcmd//include/subcmd/help.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libsubcmd//include/subcmd/pager.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libsubcmd//include/subcmd/parse-options.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libsubcmd//include/subcmd/run-command.h
+  INSTALL libsubcmd_headers
+  HOSTLD  scripts/tracepoint-update
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/libsubcmd/include/subcmd/exec-cmd.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/libsubcmd/include/subcmd/help.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/libsubcmd/include/subcmd/pager.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/libsubcmd/include/subcmd/parse-options.h
+  INSTALL /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/libsubcmd/include/subcmd/run-command.h
+  INSTALL libsubcmd_headers
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/libbpf.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/bpf.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/nlattr.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/btf.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/libbpf_utils.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libsubcmd/exec-cmd.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libsubcmd/help.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libsubcmd/pager.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/netlink.o
+  HOSTLD  scripts/gendwarfksyms/gendwarfksyms
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/bpf_prog_linfo.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/libbpf_probes.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/hashmap.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/btf_dump.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/libsubcmd/exec-cmd.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/ringbuf.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/strset.o
+  CC      scripts/mod/empty.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libsubcmd/parse-options.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/libsubcmd/help.o
+  HOSTCC  scripts/mod/mk_elfconfig
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/libsubcmd/pager.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libsubcmd/run-command.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/libsubcmd/parse-options.o
+  CC      scripts/mod/devicetable-offsets.s
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libsubcmd/sigchain.o
+  MKELF   scripts/mod/elfconfig.h
+  UPD     scripts/mod/devicetable-offsets.h
+  HOSTCC  scripts/mod/sumversion.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/linker.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/libsubcmd/run-command.o
+  HOSTCC  scripts/mod/symsearch.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/gen_loader.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libsubcmd/subcmd-config.o
+  HOSTCC  scripts/mod/modpost.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/libsubcmd/sigchain.o
+  HOSTCC  scripts/mod/file2alias.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/relo_core.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/usdt.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/libsubcmd/subcmd-config.o
+  LD      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libsubcmd/libsubcmd-in.o
+  LD      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/libsubcmd/libsubcmd-in.o
+  AR      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libsubcmd/libsubcmd.a
+  AR      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/libsubcmd/libsubcmd.a
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/zip.o
+  MKDIR   /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/arch/x86/lib/
+  GEN     /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/arch/x86/lib/inat-tables.c
+  MKDIR   /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/arch/x86/lib/
+  GEN     /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/arch/x86/lib/cpu-feature-names.c
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/weak.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/arch/x86/orc.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/check.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/arch/x86/decode.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/special.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/arch/x86/special.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/builtin-check.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/elf.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/elf.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/objtool.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/features.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/orc_gen.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/btf_iter.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/btf_relocate.o
+  HOSTLD  scripts/mod/modpost
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/orc_dump.o
+  UPD     include/generated/timeconst.h
+  CC      kernel/bounds.s
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/libstring.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/libctype.o
+  CHKSHA1 include/linux/atomic/atomic-arch-fallback.h
+  CHKSHA1 include/linux/atomic/atomic-instrumented.h
+  CHKSHA1 include/linux/atomic/atomic-long.h
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/str_error_r.o
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/librbtree.o
+  UPD     include/generated/bounds.h
+  CC      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/signal.o
+  CC      arch/x86/kernel/asm-offsets.s
+  LD      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/arch/x86/objtool-in.o
+  UPD     include/generated/asm-offsets.h
+  CC      kernel/sched/rq-offsets.s
+  UPD     include/generated/rq-offsets.h
+  CALL    scripts/checksyscalls.sh
+  LD      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/objtool-in.o
+  LINK    /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/objtool/objtool
+  LD      /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/staticobjs/libbpf-in.o
+  LINK    /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/libbpf/libbpf.a
+  HOSTCC  /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/main.o
+  HOSTCC  /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/rbtree.o
+  HOSTCC  /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/zalloc.o
+  HOSTCC  /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/string.o
+  HOSTCC  /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/ctype.o
+  HOSTCC  /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/str_error_r.o
+  HOSTLD  /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/tools/bpf/resolve_btfids/resolve_btfids-in.o
+  LINK     resolve_btfids
+  LDS     scripts/module.lds
+make: Leaving directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel'
++ cp /lib/modules/7.0.2-6-pve/build/Module.symvers /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/Module.symvers
++ make -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel M=drivers/net/ethernet/mellanox/mlx4 clean
+make: Entering directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel'
+make[1]: Entering directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/drivers/net/ethernet/mellanox/mlx4'
+make[1]: Leaving directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/drivers/net/ethernet/mellanox/mlx4'
+make: Leaving directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel'
++ make -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel M=drivers/infiniband/hw/mlx4 clean
+make: Entering directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel'
+make[1]: Entering directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/drivers/infiniband/hw/mlx4'
+make[1]: Leaving directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/drivers/infiniband/hw/mlx4'
+make: Leaving directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel'
++ cp /lib/modules/7.0.2-6-pve/build/Module.symvers /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/Module.symvers
++ make -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel M=drivers/net/ethernet/mellanox/mlx4 modules LOCALVERSION=-6-pve -j12
+make: Entering directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel'
+make[1]: Entering directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/drivers/net/ethernet/mellanox/mlx4'
+  CC [M]  alloc.o
+  CC [M]  catas.o
+  CC [M]  cmd.o
+  CC [M]  cq.o
+  CC [M]  eq.o
+  CC [M]  fw.o
+  CC [M]  fw_qos.o
+  CC [M]  icm.o
+  CC [M]  intf.o
+  CC [M]  main.o
+  CC [M]  mcg.o
+  CC [M]  mr.o
+  CC [M]  pd.o
+  CC [M]  port.o
+  CC [M]  profile.o
+  CC [M]  qp.o
+  CC [M]  reset.o
+  CC [M]  sense.o
+  CC [M]  srq.o
+  CC [M]  resource_tracker.o
+  CC [M]  crdump.o
+  CC [M]  en_main.o
+  CC [M]  en_tx.o
+  CC [M]  en_rx.o
+  CC [M]  en_ethtool.o
+  CC [M]  en_port.o
+  CC [M]  en_cq.o
+  CC [M]  en_resources.o
+  CC [M]  en_netdev.o
+  CC [M]  en_selftest.o
+  CC [M]  en_clock.o
+  CC [M]  en_dcb_nl.o
+  LD [M]  mlx4_core.o
+  LD [M]  mlx4_en.o
+  MODPOST Module.symvers
+  CC [M]  mlx4_core.mod.o
+  CC [M]  .module-common.o
+  CC [M]  mlx4_en.mod.o
+  LD [M]  mlx4_en.ko
+  LD [M]  mlx4_core.ko
+  BTF [M] mlx4_en.ko
+Skipping BTF generation for mlx4_en.ko due to unavailability of vmlinux
+  BTF [M] mlx4_core.ko
+Skipping BTF generation for mlx4_core.ko due to unavailability of vmlinux
+make[1]: Leaving directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/drivers/net/ethernet/mellanox/mlx4'
+make: Leaving directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel'
++ make -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel M=drivers/infiniband/hw/mlx4 modules LOCALVERSION=-6-pve KBUILD_EXTRA_SYMBOLS=/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/drivers/net/ethernet/mellanox/mlx4/Module.symvers -j12
+make: Entering directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel'
+make[1]: Entering directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/drivers/infiniband/hw/mlx4'
+  CC [M]  ah.o
+  CC [M]  cq.o
+  CC [M]  doorbell.o
+  CC [M]  mad.o
+  CC [M]  main.o
+  CC [M]  mr.o
+  CC [M]  qp.o
+  CC [M]  srq.o
+  CC [M]  mcg.o
+  CC [M]  cm.o
+  CC [M]  alias_GUID.o
+  CC [M]  sysfs.o
+  LD [M]  mlx4_ib.o
+  MODPOST Module.symvers
+  CC [M]  mlx4_ib.mod.o
+  CC [M]  .module-common.o
+  LD [M]  mlx4_ib.ko
+  BTF [M] mlx4_ib.ko
+Skipping BTF generation for mlx4_ib.ko due to unavailability of vmlinux
+make[1]: Leaving directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/drivers/infiniband/hw/mlx4'
+make: Leaving directory '/root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel'
+vermagic ok: mlx4_core.ko: 7.0.2-6-pve SMP preempt mod_unload modversions 
+vermagic ok: mlx4_en.ko: 7.0.2-6-pve SMP preempt mod_unload modversions 
+vermagic ok: mlx4_ib.ko: 7.0.2-6-pve SMP preempt mod_unload modversions 
+mlx4_ib symbol CRCs match patched mlx4_core exports
+=== install modules ===
++ mkdir -p /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2
+vermagic ok: mlx4_core.ko: 7.0.2-6-pve SMP preempt mod_unload modversions 
++ install -m 0644 /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/drivers/net/ethernet/mellanox/mlx4/mlx4_core.ko /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2/mlx4_core.ko
+vermagic ok: mlx4_en.ko: 7.0.2-6-pve SMP preempt mod_unload modversions 
++ install -m 0644 /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/drivers/net/ethernet/mellanox/mlx4/mlx4_en.ko /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2/mlx4_en.ko
+vermagic ok: mlx4_ib.ko: 7.0.2-6-pve SMP preempt mod_unload modversions 
++ install -m 0644 /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel/drivers/infiniband/hw/mlx4/mlx4_ib.ko /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2/mlx4_ib.ko
+
+=== update module config and dependency database ===
+module options written to /etc/modprobe.d/cx3pro-inbox-rocev2.conf
+initramfs modules pinned in /etc/initramfs-tools/modules
++ depmod 7.0.2-6-pve
++ update-initramfs -u -k 7.0.2-6-pve
+update-initramfs: Generating /boot/initrd.img-7.0.2-6-pve
+Running hook script 'zz-proxmox-boot'..
+Re-executing '/etc/kernel/postinst.d/zz-proxmox-boot' in new private mount namespace..
+Copying and configuring kernels on /dev/disk/by-uuid/E2A2-1994
+	Copying kernel and creating boot-entry for 6.17.13-7-pve
+	Copying kernel and creating boot-entry for 7.0.2-2-pve
+	Copying kernel and creating boot-entry for 7.0.2-6-pve
+
+=== dependency check ===
++ modprobe --show-depends -S 7.0.2-6-pve mlx4_core
+insmod /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2/mlx4_core.ko num_vfs=12,0,0 probe_vf=12,0,0 port_type_array=2,2 log_num_mgm_entry_size=-7 enable_mfunc_roce_v2=1 
++ modprobe --show-depends -S 7.0.2-6-pve mlx4_en
+insmod /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2/mlx4_core.ko num_vfs=12,0,0 probe_vf=12,0,0 port_type_array=2,2 log_num_mgm_entry_size=-7 enable_mfunc_roce_v2=1 
+insmod /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2/mlx4_en.ko 
++ modprobe --show-depends -S 7.0.2-6-pve mlx4_ib
+insmod /lib/modules/7.0.2-6-pve/kernel/drivers/infiniband/core/ib_core.ko 
+insmod /lib/modules/7.0.2-6-pve/kernel/drivers/infiniband/core/ib_uverbs.ko 
+insmod /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2/mlx4_core.ko num_vfs=12,0,0 probe_vf=12,0,0 port_type_array=2,2 log_num_mgm_entry_size=-7 enable_mfunc_roce_v2=1 
+insmod /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2/mlx4_ib.ko 
+resolved mlx4_core to /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2/mlx4_core.ko
+resolved mlx4_en to /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2/mlx4_en.ko
+resolved mlx4_ib to /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2/mlx4_ib.ko
+
+install complete
+reboot into 7.0.2-6-pve, then verify with:
+  modinfo -n mlx4_core mlx4_en mlx4_ib
+  journalctl -k -b -g 'BUG|Oops|WARNING|Call Trace|mlx4|Unknown symbol|disagrees' --no-pager
+log=/root/CX3Pro-inbox-driver-patch/logs/install-20260522-233040.log

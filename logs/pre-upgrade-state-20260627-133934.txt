@@ -1,0 +1,156 @@
+snapshot=pre-inbox-port-upgrade-20260627-133934
+2026-06-27T13:39:34-04:00
+Linux pvs3 7.0.2-6-pve #1 SMP PREEMPT_DYNAMIC PMX 7.0.2-6 (2026-05-20T08:55Z) x86_64 GNU/Linux
+NAME                      MOUNTPOINT    USED  REFER  CANMOUNT
+rpool                     /rpool       12.2G   104K  on
+rpool/ROOT                /rpool/ROOT  9.96G    96K  on
+rpool/ROOT/pve-1          /            9.96G  9.75G  on
+rpool/data                /rpool/data  2.05G    96K  on
+rpool/data/vm-100-disk-0  -              56K    56K  -
+rpool/data/vm-100-disk-1  -            1.48G  1.48G  -
+rpool/data/vm-101-disk-0  -              56K    56K  -
+rpool/data/vm-101-disk-1  -             584M   584M  -
+rpool/var-lib-vz          /var/lib/vz   124M   124M  on
+agent: 1
+bios: ovmf
+boot: order=scsi0
+cores: 2
+description: <div align='center'>%0A  <a href='https%3A//community-scripts.org' target='_blank' rel='noopener noreferrer'>%0A    <img src='https%3A//raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/images/logo-81x112.png' alt='Logo' style='width%3A81px;height%3A112px;'/>%0A  </a>%0A%0A  <h2 style='font-size%3A 24px; margin%3A 20px 0;'>Debian VM</h2>%0A%0A  <p style='margin%3A 16px 0;'>%0A    <a href='https%3A//ko-fi.com/community_scripts' target='_blank' rel='noopener noreferrer'>%0A      <img src='https%3A//img.shields.io/badge/&#x2615;-Buy us a coffee-blue' alt='spend Coffee' />%0A    </a>%0A  </p>%0A%0A  <span style='margin%3A 0 10px;'>%0A    <i class="fa fa-github fa-fw" style="color%3A #f5f5f5;"></i>%0A    <a href='https%3A//github.com/community-scripts/ProxmoxVE' target='_blank' rel='noopener noreferrer' style='text-decoration%3A none; color%3A #00617f;'>GitHub</a>%0A  </span>%0A  <span style='margin%3A 0 10px;'>%0A    <i class="fa fa-comments fa-fw" style="color%3A #f5f5f5;"></i>%0A    <a href='https%3A//github.com/community-scripts/ProxmoxVE/discussions' target='_blank' rel='noopener noreferrer' style='text-decoration%3A none; color%3A #00617f;'>Discussions</a>%0A  </span>%0A  <span style='margin%3A 0 10px;'>%0A    <i class="fa fa-exclamation-circle fa-fw" style="color%3A #f5f5f5;"></i>%0A    <a href='https%3A//github.com/community-scripts/ProxmoxVE/issues' target='_blank' rel='noopener noreferrer' style='text-decoration%3A none; color%3A #00617f;'>Issues</a>%0A  </span>%0A</div>
+efidisk0: local-zfs:vm-100-disk-0,efitype=4m,size=4M
+hostpci0: 0000:17:01.4
+localtime: 1
+memory: 2048
+meta: creation-qemu=11.0.0,ctime=1779665351
+name: debian
+net0: virtio=02:F7:21:4F:28:FA,bridge=vmbr0
+onboot: 1
+ostype: l26
+scsi0: local-zfs:vm-100-disk-1,discard=on,size=16G,ssd=1
+scsi1: /dev/disk/by-id/nvme-Linux_298f1fbbd35ea2a8d1d8,backup=0,cache=none,discard=on,size=8G,ssd=1
+scsihw: virtio-scsi-pci
+serial0: socket
+smbios1: uuid=5842112f-26ee-4a44-8082-4dbfbe9868f3
+tablet: 0
+tags: community-script
+vmgenid: 3e6f18c3-5f32-4935-a88a-d03a87513acf
+nvme-subsys0 - NQN=nqn.2018-01.com.wdc:nguid:E8238FA6BF53-0001-001B444A442784BC
+               hostnqn=nqn.2014-08.org.nvmexpress:uuid:2e4a14ed-b769-ea11-89f2-a4ae1118061e
+\
+ +- nvme0 pcie 0000:18:00.0 live
+
+nvme-subsys1 - NQN=nqn.2026-06.local.pvs1:cx3pro-vm100-nullblk
+               hostnqn=nqn.2014-08.org.nvmexpress:uuid:2e4a14ed-b769-ea11-89f2-a4ae1118061e
+\
+ +- nvme1 rdma traddr=192.168.20.50,trsvcid=4520 live
+Listing...
+base-files/stable 13.8+deb13u5 amd64 [upgradable from: 13.8+deb13u4]
+bash/stable 5.2.37-2+b9 amd64 [upgradable from: 5.2.37-2+b8]
+bind9-dnsutils/stable-security 1:9.20.23-1~deb13u1 amd64 [upgradable from: 1:9.20.21-1~deb13u1]
+bind9-host/stable-security 1:9.20.23-1~deb13u1 amd64 [upgradable from: 1:9.20.21-1~deb13u1]
+bind9-libs/stable-security 1:9.20.23-1~deb13u1 amd64 [upgradable from: 1:9.20.21-1~deb13u1]
+busybox/stable 1:1.37.0-6+b8 amd64 [upgradable from: 1:1.37.0-6+b7]
+curl/stable 8.14.1-2+deb13u3 amd64 [upgradable from: 8.14.1-2+deb13u2]
+dirmngr/stable 2.4.7-21+deb13u1+b3 amd64 [upgradable from: 2.4.7-21+deb13u1+b2]
+distro-info-data/stable 0.66+deb13u2 all [upgradable from: 0.66+deb13u1]
+e2fsprogs/stable 1.47.2-3+b11 amd64 [upgradable from: 1.47.2-3+b10]
+frr-pythontools/stable 10.6.1-1+pve2 all [upgradable from: 10.6.1-1+pve1]
+frr/stable 10.6.1-1+pve2 amd64 [upgradable from: 10.6.1-1+pve1]
+gnutls-bin/stable-security 3.8.9-3+deb13u4 amd64 [upgradable from: 3.8.9-3+deb13u2]
+gpg-agent/stable 2.4.7-21+deb13u1+b3 amd64 [upgradable from: 2.4.7-21+deb13u1+b2]
+gpg-wks-client/stable 2.4.7-21+deb13u1+b3 amd64 [upgradable from: 2.4.7-21+deb13u1+b2]
+gpg/stable 2.4.7-21+deb13u1+b3 amd64 [upgradable from: 2.4.7-21+deb13u1+b2]
+gpgconf/stable 2.4.7-21+deb13u1+b3 amd64 [upgradable from: 2.4.7-21+deb13u1+b2]
+gpgsm/stable 2.4.7-21+deb13u1+b3 amd64 [upgradable from: 2.4.7-21+deb13u1+b2]
+initramfs-tools-bin/stable 0.148.4 amd64 [upgradable from: 0.148.3]
+initramfs-tools-core/stable 0.148.4 all [upgradable from: 0.148.3]
+initramfs-tools/stable 0.148.4 all [upgradable from: 0.148.3]
+krb5-locales/stable-security 1.21.3-5+deb13u1 all [upgradable from: 1.21.3-5]
+libarchive13t64/stable 3.7.4-4+deb13u1 amd64 [upgradable from: 3.7.4-4]
+libcom-err2/stable 1.47.2-3+b11 amd64 [upgradable from: 1.47.2-3+b10]
+libcurl3t64-gnutls/stable 8.14.1-2+deb13u3 amd64 [upgradable from: 8.14.1-2+deb13u2]
+libcurl4t64/stable 8.14.1-2+deb13u3 amd64 [upgradable from: 8.14.1-2+deb13u2]
+libext2fs2t64/stable 1.47.2-3+b11 amd64 [upgradable from: 1.47.2-3+b10]
+libgcrypt20/stable-security 1.11.0-7+deb13u1 amd64 [upgradable from: 1.11.0-7]
+libglib2.0-0t64/stable 2.84.4-3~deb13u3 amd64 [upgradable from: 2.84.4-3~deb13u2]
+libgnutls-dane0t64/stable-security 3.8.9-3+deb13u4 amd64 [upgradable from: 3.8.9-3+deb13u2]
+libgnutls30t64/stable-security 3.8.9-3+deb13u4 amd64 [upgradable from: 3.8.9-3+deb13u2]
+libgssapi-krb5-2/stable-security 1.21.3-5+deb13u1 amd64 [upgradable from: 1.21.3-5]
+libharfbuzz0b/stable 10.2.0-1+deb13u1 amd64 [upgradable from: 10.2.0-1+b1]
+libhttp-daemon-perl/stable-security 6.16-1+deb13u1 all [upgradable from: 6.16-1]
+libk5crypto3/stable-security 1.21.3-5+deb13u1 amd64 [upgradable from: 1.21.3-5]
+libkrb5-3/stable-security 1.21.3-5+deb13u1 amd64 [upgradable from: 1.21.3-5]
+libkrb5support0/stable-security 1.21.3-5+deb13u1 amd64 [upgradable from: 1.21.3-5]
+libldb2/stable-security 2:2.11.0+samba4.22.8+dfsg-0+deb13u2 amd64 [upgradable from: 2:2.11.0+samba4.22.8+dfsg-0+deb13u1]
+libnss3/stable-security 2:3.110-1+deb13u2 amd64 [upgradable from: 2:3.110-1+deb13u1]
+libnvpair3linux/stable 2.4.2-pve1 amd64 [upgradable from: 2.4.1-pve2]
+libpve-access-control/stable 9.1.1 all [upgradable from: 9.1.0]
+libpve-cluster-api-perl/stable 9.1.6 all [upgradable from: 9.1.4]
+libpve-cluster-perl/stable 9.1.6 all [upgradable from: 9.1.4]
+libpve-common-perl/stable 9.1.16 all [upgradable from: 9.1.12]
+libpve-guest-common-perl/stable 6.0.4 all [upgradable from: 6.0.2]
+libpve-network-api-perl/stable 1.6.6 all [upgradable from: 1.4.2]
+libpve-network-perl/stable 1.6.6 all [upgradable from: 1.4.2]
+libpve-notify-perl/stable 9.1.6 all [upgradable from: 9.1.4]
+libpve-rs-perl/stable 0.15.3 amd64 [upgradable from: 0.13.2]
+libpve-storage-perl/stable 9.1.6 all [upgradable from: 9.1.3]
+librabbitmq4/stable-security 0.15.0-1+deb13u1 amd64 [upgradable from: 0.15.0-1]
+libsmbclient0/stable-security 2:4.22.8+dfsg-0+deb13u2 amd64 [upgradable from: 2:4.22.8+dfsg-0+deb13u1]
+libss2/stable 1.47.2-3+b11 amd64 [upgradable from: 1.47.2-3+b10]
+libssh2-1t64/stable-security 1.11.1-1+deb13u1 amd64 [upgradable from: 1.11.1-1]
+libssl-dev/stable-security 3.5.6-1~deb13u2 amd64 [upgradable from: 3.5.6-1~deb13u1]
+libssl3t64/stable-security 3.5.6-1~deb13u2 amd64 [upgradable from: 3.5.6-1~deb13u1]
+libtalloc2/stable-security 2:2.4.3+samba4.22.8+dfsg-0+deb13u2 amd64 [upgradable from: 2:2.4.3+samba4.22.8+dfsg-0+deb13u1]
+libtdb1/stable-security 2:1.4.13+samba4.22.8+dfsg-0+deb13u2 amd64 [upgradable from: 2:1.4.13+samba4.22.8+dfsg-0+deb13u1]
+libtevent0t64/stable-security 2:0.16.2+samba4.22.8+dfsg-0+deb13u2 amd64 [upgradable from: 2:0.16.2+samba4.22.8+dfsg-0+deb13u1]
+libunbound8/stable-security 1.22.0-2+deb13u3 amd64 [upgradable from: 1.22.0-2+deb13u1]
+libuutil3linux/stable 2.4.2-pve1 amd64 [upgradable from: 2.4.1-pve2]
+libwbclient0/stable-security 2:4.22.8+dfsg-0+deb13u2 amd64 [upgradable from: 2:4.22.8+dfsg-0+deb13u1]
+libxslt1.1/stable 1.1.35-1.2+deb13u3 amd64 [upgradable from: 1.1.35-1.2+deb13u2]
+libzfs7linux/stable 2.4.2-pve1 amd64 [upgradable from: 2.4.1-pve2]
+libzpool7linux/stable 2.4.2-pve1 amd64 [upgradable from: 2.4.1-pve2]
+linux-libc-dev/stable-security 6.12.94-1 all [upgradable from: 6.12.88-1]
+logsave/stable 1.47.2-3+b11 amd64 [upgradable from: 1.47.2-3+b10]
+lxc-pve/stable 7.0.0-2 amd64 [upgradable from: 7.0.0-1]
+nano/stable 8.4-1+deb13u1 amd64 [upgradable from: 8.4-1]
+openssh-client/stable 1:10.0p1-7+deb13u4 amd64 [upgradable from: 1:10.0p1-7+deb13u2]
+openssh-server/stable 1:10.0p1-7+deb13u4 amd64 [upgradable from: 1:10.0p1-7+deb13u2]
+openssh-sftp-server/stable 1:10.0p1-7+deb13u4 amd64 [upgradable from: 1:10.0p1-7+deb13u2]
+openssl-provider-legacy/stable-security 3.5.6-1~deb13u2 amd64 [upgradable from: 3.5.6-1~deb13u1]
+openssl/stable-security 3.5.6-1~deb13u2 amd64 [upgradable from: 3.5.6-1~deb13u1]
+proxmox-backup-client/stable 4.2.2-1 amd64 [upgradable from: 4.2.0-1]
+proxmox-backup-file-restore/stable 4.2.2-1 amd64 [upgradable from: 4.2.0-1]
+proxmox-firewall/stable 1.2.3 amd64 [upgradable from: 1.2.2]
+proxmox-kernel-6.14/stable 6.14.11-9 all [upgradable from: 6.14.11-8]
+proxmox-kernel-6.17/stable 6.17.13-13 amd64 [upgradable from: 6.17.13-7]
+proxmox-kernel-7.0/stable 7.0.12-1 amd64 [upgradable from: 7.0.2-6]
+proxmox-kernel-helper/stable 9.2.0 all [upgradable from: 9.0.4]
+proxmox-offline-mirror-docs/stable 0.7.4 all [upgradable from: 0.7.3]
+proxmox-offline-mirror-helper/stable 0.7.4 amd64 [upgradable from: 0.7.3]
+proxmox-ve/stable 9.2.0 all [upgradable from: 9.1.0]
+proxmox-widget-toolkit/stable 5.2.5 all [upgradable from: 5.1.10]
+pve-cluster/stable 9.1.6 amd64 [upgradable from: 9.1.4]
+pve-container/stable 6.1.10 all [upgradable from: 6.1.6]
+pve-docs/stable 9.2.2 all [upgradable from: 9.1.3]
+pve-firmware/stable 3.18-4 all [upgradable from: 3.18-3]
+pve-ha-manager/stable 5.2.4 amd64 [upgradable from: 5.2.0]
+pve-i18n/stable 3.8.0 all [upgradable from: 3.7.1]
+pve-manager/stable 9.2.3 all [upgradable from: 9.1.11]
+pve-qemu-kvm/stable 11.0.0-4 amd64 [upgradable from: 11.0.0-2]
+pve-yew-mobile-gui/stable 0.7.0 amd64 [upgradable from: 0.6.4]
+pve-yew-mobile-i18n/stable 3.8.0 all [upgradable from: 3.7.1]
+python3-urllib3/stable-security 2.3.0-3+deb13u2 all [upgradable from: 2.3.0-3+deb13u1]
+qemu-server/stable 9.1.17 amd64 [upgradable from: 9.1.10]
+samba-common/stable-security 2:4.22.8+dfsg-0+deb13u2 all [upgradable from: 2:4.22.8+dfsg-0+deb13u1]
+samba-libs/stable-security 2:4.22.8+dfsg-0+deb13u2 amd64 [upgradable from: 2:4.22.8+dfsg-0+deb13u1]
+sed/stable 4.9-2+deb13u1 amd64 [upgradable from: 4.9-2]
+shim-helpers-amd64-signed/stable 1+16.1+1+pmx1 amd64 [upgradable from: 1+15.8+1+pmx1]
+shim-signed-common/stable 1.48+pmx1+16.1-1+pmx1 all [upgradable from: 1.47+pmx1+15.8-1+pmx1]
+shim-signed/stable 1.48+pmx1+16.1-1+pmx1 amd64 [upgradable from: 1.47+pmx1+15.8-1+pmx1]
+shim-unsigned/stable 16.1-1+pmx1 amd64 [upgradable from: 15.8-1+pmx1]
+smbclient/stable-security 2:4.22.8+dfsg-0+deb13u2 amd64 [upgradable from: 2:4.22.8+dfsg-0+deb13u1]
+ssh/stable 1:10.0p1-7+deb13u4 all [upgradable from: 1:10.0p1-7+deb13u2]
+tzdata/stable 2026b-0+deb13u1 all [upgradable from: 2026a-0+deb13u1]
+xsltproc/stable 1.1.35-1.2+deb13u3 amd64 [upgradable from: 1.1.35-1.2+deb13u2]
+zfs-initramfs/stable 2.4.2-pve1 all [upgradable from: 2.4.1-pve2]
+zfs-zed/stable 2.4.2-pve1 amd64 [upgradable from: 2.4.1-pve2]
+zfsutils-linux/stable 2.4.2-pve1 amd64 [upgradable from: 2.4.1-pve2]

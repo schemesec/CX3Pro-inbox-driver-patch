@@ -21,13 +21,32 @@ For a kernel upgrade, first check whether the patch still applies to the source
 for the running kernel:
 
 ```sh
+./find-pve-kernel-ref "$(uname -r)"
 ./install-pve7.sh --apply-check-only --no-apt
 ```
+
+For tested kernels with a known mapping, `install-pve7.sh` auto-selects the
+validated Proxmox packaging ref. For any unlisted kernel, use the ref printed
+by `find-pve-kernel-ref` and set `PVE_KERNEL_REF` explicitly. Do not rely on
+the current repository default branch for a host that is running an older
+kernel.
 
 A clean apply check means the source-level patch applied and passed
 `git diff --check`; it does not prove the modules build, boot, or pass RDMA
 traffic. Run the full installer and verifier before treating a new kernel as
 supported. `--strict-kernel` restores the old refuse-unlisted-kernels behavior.
+
+For this project, "supported" requires lifecycle testing:
+
+1. Rebuild/install the override modules for the target kernel.
+2. Reboot.
+3. Run `./port-validation --stage post-reboot` with `CLIENT_SSH` pointed at the
+   peer RDMA host.
+4. After a Proxmox package upgrade, rebuild/install again if the kernel changed,
+   reboot, then run `./port-validation --stage post-upgrade`.
+
+Both validation gates must include the VF RDMA-CM traffic test unless the skip
+is explicitly documented for a non-traffic-only investigation.
 
 The script fetches a Proxmox `pve-kernel` checkout, applies the patch, builds
 only `mlx4_core.ko`, `mlx4_en.ko`, and `mlx4_ib.ko` for the current kernel, and
@@ -47,8 +66,15 @@ running `depmod`. The dependency check must resolve `mlx4_core`, `mlx4_en`, and
 ## Current validation
 
 On `pvs3`, the installer and runtime tests have been validated against Proxmox
-kernel `7.0.2-2-pve`. Other kernels are allowed by the installer as unvalidated
-targets and must pass the same checks before being added to `TESTED_KERNELS`.
+kernels `7.0.2-2-pve` and `7.0.2-6-pve`. Other kernels are allowed by the
+installer as unvalidated targets and must pass the same checks before being
+added to `TESTED_KERNELS`.
+
+Known Proxmox packaging refs:
+
+- `7.0.2-2-pve`: `59dd19a1c4f66f932d222eac91f9f1454f9b10cc`
+- `7.0.2-6-pve`: `87f22e55de30d73b83722b86790394564036b33c`
+
 The full mlx4 module build completed for:
 
 - `drivers/net/ethernet/mellanox/mlx4/mlx4_core.ko`
@@ -57,7 +83,7 @@ The full mlx4 module build completed for:
 
 The installer verifies vermagic, verifies that `mlx4_ib.ko` symbol CRCs match
 the patched `mlx4_core.ko` exports it consumes, installs the modules under
-`/lib/modules/7.0.2-2-pve/updates/cx3pro-inbox-rocev2`, runs `depmod`, updates
+`/lib/modules/<kernel>/updates/cx3pro-inbox-rocev2`, runs `depmod`, updates
 initramfs, and checks that all three active mlx4 modules resolve to that update
 directory.
 

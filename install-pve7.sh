@@ -45,6 +45,8 @@ Environment:
   JOBS=...           Parallel build jobs. Default: nproc.
   BUILD_ROOT=...     Build checkout directory. Default: /root/cx3pro-inbox-build.
   PVE_KERNEL_REF=... Optional pve-kernel git ref to check out before building.
+                     Defaults to a known validated ref for tested kernels when
+                     available, otherwise tracks the repository default branch.
   TESTED_KERNELS=... Space-separated kernels known to have passed validation.
   INSTALL_DIR=...    Module install directory. Default:
                      /lib/modules/\$KVER/updates/cx3pro-inbox-rocev2
@@ -140,6 +142,20 @@ kernel_is_tested() {
 		[ "$KVER" = "$tested" ] && return 0
 	done
 	return 1
+}
+
+known_pve_kernel_ref() {
+	case "$KVER" in
+	7.0.2-2-pve)
+		printf '%s\n' 59dd19a1c4f66f932d222eac91f9f1454f9b10cc
+		;;
+	7.0.2-6-pve)
+		printf '%s\n' 87f22e55de30d73b83722b86790394564036b33c
+		;;
+	*)
+		return 1
+		;;
+	esac
 }
 
 ensure_build_deps() {
@@ -339,9 +355,19 @@ EOF
 mkdir -p "$LOG_DIR"
 cd "$REPO_ROOT"
 
+if [ -z "$PVE_KERNEL_REF" ]; then
+	PVE_KERNEL_REF="$(known_pve_kernel_ref || true)"
+fi
+AUTO_REF_SELECTED=0
+if [ -n "$PVE_KERNEL_REF" ] && known_pve_kernel_ref >/dev/null 2>&1 &&
+    [ "$PVE_KERNEL_REF" = "$(known_pve_kernel_ref)" ]; then
+	AUTO_REF_SELECTED=1
+fi
+
 log "=== CX3 Pro inbox RoCEv2 VF patch installer ==="
 log "repo=${REPO_ROOT}"
 log "kernel=${KVER}"
+log "pve_kernel_ref=${PVE_KERNEL_REF:-repository default branch}"
 log "jobs=${JOBS}"
 log "build_root=${BUILD_ROOT}"
 log "install_dir=${INSTALL_DIR}"
@@ -357,6 +383,15 @@ if ! kernel_is_tested; then
 	fi
 	log "warning: ${KVER} is not in TESTED_KERNELS: ${TESTED_KERNELS}"
 	log "warning: continuing as an unvalidated kernel; build and runtime tests must pass before treating it as supported"
+	if [ -z "$PVE_KERNEL_REF" ]; then
+		log "warning: no PVE_KERNEL_REF set for unvalidated kernel ${KVER}"
+		log "warning: run ./find-pve-kernel-ref ${KVER} and rerun with the exact PVE_KERNEL_REF before trusting the result"
+	fi
+elif [ "$AUTO_REF_SELECTED" -eq 1 ]; then
+	log "using known validated pve-kernel ref for ${KVER}"
+elif [ -z "$PVE_KERNEL_REF" ]; then
+	log "warning: ${KVER} is tested but no known pve-kernel ref is mapped"
+	log "warning: repository default branch will be used; run ./find-pve-kernel-ref ${KVER} and set PVE_KERNEL_REF explicitly"
 fi
 
 if [ "$(id -u)" -ne 0 ]; then

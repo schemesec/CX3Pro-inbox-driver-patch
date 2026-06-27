@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+KVER="${KVER:-$(uname -r)}"
+PF="${PF:-enp23s0}"
+NUM_VFS="${NUM_VFS:-12}"
+VF_VLAN="${VF_VLAN:-20}"
+VLAN10_IP="${VLAN10_IP:-192.168.10.56/24}"
+VLAN20_IP="${VLAN20_IP:-192.168.20.56/24}"
+JOURNAL_SINCE="${JOURNAL_SINCE:-$(date '+%F 00:00:00')}"
+RUN_BUILD="${RUN_BUILD:-1}"
+RUN_VERIFY="${RUN_VERIFY:-1}"
+RUN_NVMET_STATUS="${RUN_NVMET_STATUS:-1}"
+
+usage() {
+	cat <<EOF
+Usage: $0
+
+Run the safe, non-installing update-readiness path for the current Proxmox
+kernel. This script does not install modules, reboot, detach VM disks, or run
+storage write tests.
+
+Checks:
+  1. preflight-upgrade.sh
+  2. find-pve-kernel-ref
+  3. install-pve7.sh --apply-check-only --no-apt
+  4. install-pve7.sh --build-only --no-apt when RUN_BUILD=1
+  5. verify-pve7.sh when RUN_VERIFY=1
+  6. nvmet-vm-lab status when RUN_NVMET_STATUS=1 and the helper exists
+
+Environment:
+  KVER=${KVER}
+  RUN_BUILD=${RUN_BUILD}
+  RUN_VERIFY=${RUN_VERIFY}
+  RUN_NVMET_STATUS=${RUN_NVMET_STATUS}
+  PF=${PF}
+  NUM_VFS=${NUM_VFS}
+  VF_VLAN=${VF_VLAN}
+  VLAN10_IP=${VLAN10_IP}
+  VLAN20_IP=${VLAN20_IP}
+  JOURNAL_SINCE=${JOURNAL_SINCE}
+EOF
+}
+
+case "${1:-}" in
+	-h|--help)
+		usage
+		exit 0
+		;;
+	"")
+		;;
+	*)
+		usage >&2
+		exit 2
+		;;
+esac
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$REPO_ROOT"
+
+section() {
+	printf '\n=== %s ===\n' "$*"
+}
+
+section "preflight"
+KVER="$KVER" ./preflight-upgrade.sh
+
+section "resolve pve-kernel ref"
+ref_output="$(KVER="$KVER" ./find-pve-kernel-ref "$KVER")"
+printf '%s\n' "$ref_output"
+PVE_KERNEL_REF="$(printf '%s\n' "$ref_output" | awk -F= '$1 == "pve_kernel_ref" { print $2; exit }')"
+if [ -z "$PVE_KERNEL_REF" ]; then
+	echo "error: find-pve-kernel-ref did not return pve_kernel_ref" >&2
+	exit 1
+fi
+
+section "apply check"
+KVER="$KVER" PVE_KERNEL_REF="$PVE_KERNEL_REF" ./install-pve7.sh --apply-check-only --no-apt
+
+if [ "$RUN_BUILD" = "1" ]; then
+	section "build only"
+	KVER="$KVER" PVE_KERNEL_REF="$PVE_KERNEL_REF" ./install-pve7.sh --build-only --no-apt
+else
+	section "build only"
+	echo "skipped because RUN_BUILD=${RUN_BUILD}"
+fi
+
+if [ "$RUN_VERIFY" = "1" ]; then
+	section "runtime verify"
+	JOURNAL_SINCE="$JOURNAL_SINCE" PF="$PF" NUM_VFS="$NUM_VFS" VF_VLAN="$VF_VLAN" \
+		VLAN10_IP="$VLAN10_IP" VLAN20_IP="$VLAN20_IP" ./verify-pve7.sh
+else
+	section "runtime verify"
+	echo "skipped because RUN_VERIFY=${RUN_VERIFY}"
+fi
+
+if [ "$RUN_NVMET_STATUS" = "1" ] && [ -x ./nvmet-vm-lab ]; then
+	section "nvmet vm lab status"
+	JOURNAL_SINCE="$JOURNAL_SINCE" ./nvmet-vm-lab status
+fi
+
+section "summary"
+echo "port-update-check: PASS"

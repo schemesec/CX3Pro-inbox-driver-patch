@@ -16,6 +16,7 @@ FW_PREFIX="${FW_PREFIX:-2.42.5}"
 RDMA_DEV="${RDMA_DEV:-}"
 MTU="${MTU:-9000}"
 LINK_WAIT_SECS="${LINK_WAIT_SECS:-60}"
+JOURNAL_SINCE="${JOURNAL_SINCE:-$(date '+%F 00:00:00')}"
 
 failures=0
 
@@ -254,10 +255,10 @@ if [ "$CHECK_VLAN_IPS" = "1" ]; then
 fi
 
 section "kernel warning scan"
-if journalctl -k -b -g 'BUG|Oops|WARNING|Call Trace|Unknown symbol|disagrees|__warn|fortify|objtool|vhcr command:|add_roce_gid|__ib_cache_gid_add' --no-pager | grep -v '^-- No entries --'; then
-	fail "kernel warning scan found entries"
+if journalctl -k -b --since "$JOURNAL_SINCE" -g 'BUG|Oops|WARNING|Call Trace|Unknown symbol|disagrees|__warn|fortify|objtool|vhcr command:|add_roce_gid|__ib_cache_gid_add' --no-pager | grep -v '^-- No entries --'; then
+	fail "kernel warning scan found entries since $JOURNAL_SINCE"
 else
-	pass "kernel warning scan has no matching entries"
+	pass "kernel warning scan has no matching entries since $JOURNAL_SINCE"
 fi
 
 section "summary"

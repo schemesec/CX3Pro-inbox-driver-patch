@@ -64,10 +64,30 @@ check_module_resolution() {
 	esac
 }
 
+known_pve_kernel_ref() {
+	case "$KVER" in
+	7.0.2-2-pve)
+		printf '%s\n' 59dd19a1c4f66f932d222eac91f9f1454f9b10cc
+		;;
+	7.0.2-6-pve)
+		printf '%s\n' 87f22e55de30d73b83722b86790394564036b33c
+		;;
+	*)
+		return 1
+		;;
+	esac
+}
+
 section "host"
 hostname
 printf 'kernel=%s\n' "$KVER"
 printf 'install_dir=%s\n' "$INSTALL_DIR"
+PVE_KERNEL_REF_RECOMMENDED="$(known_pve_kernel_ref || true)"
+if [ -n "$PVE_KERNEL_REF_RECOMMENDED" ]; then
+	printf 'pve_kernel_ref=%s\n' "$PVE_KERNEL_REF_RECOMMENDED"
+else
+	warn "no known pve-kernel ref pin for ${KVER}; set PVE_KERNEL_REF before apply/build checks"
+fi
 
 section "kernel packages"
 for pkg in \
@@ -107,13 +127,24 @@ for module in mlx4_core mlx4_en mlx4_ib; do
 done
 
 section "recommended next commands"
-cat <<EOF
-./install-pve7.sh --apply-check-only --no-apt
-./install-pve7.sh --build-only --no-apt
-./install-pve7.sh --no-apt
+if [ -n "$PVE_KERNEL_REF_RECOMMENDED" ]; then
+	cat <<EOF
+PVE_KERNEL_REF=${PVE_KERNEL_REF_RECOMMENDED} ./install-pve7.sh --apply-check-only --no-apt
+PVE_KERNEL_REF=${PVE_KERNEL_REF_RECOMMENDED} ./install-pve7.sh --build-only --no-apt
+PVE_KERNEL_REF=${PVE_KERNEL_REF_RECOMMENDED} ./install-pve7.sh --no-apt
 reboot
 PF=enp23s0 NUM_VFS=12 VF_VLAN=20 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./verify-pve7.sh
 EOF
+else
+	cat <<EOF
+./find-pve-kernel-ref ${KVER}
+PVE_KERNEL_REF=<exact-proxmox-packaging-ref-for-${KVER}> ./install-pve7.sh --apply-check-only --no-apt
+PVE_KERNEL_REF=<exact-proxmox-packaging-ref-for-${KVER}> ./install-pve7.sh --build-only --no-apt
+PVE_KERNEL_REF=<exact-proxmox-packaging-ref-for-${KVER}> ./install-pve7.sh --no-apt
+reboot
+PF=enp23s0 NUM_VFS=12 VF_VLAN=20 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./verify-pve7.sh
+EOF
+fi
 
 section "summary"
 printf 'warnings=%d failures=%d\n' "$warnings" "$failures"

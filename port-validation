@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+STAGE=""
+RUN_UPDATE_CHECK="${RUN_UPDATE_CHECK:-1}"
+RUN_RDMACM="${RUN_RDMACM:-1}"
+RUN_NVMET_STATUS="${RUN_NVMET_STATUS:-0}"
+RUN_BUILD="${RUN_BUILD:-0}"
+RUN_VERIFY="${RUN_VERIFY:-1}"
+CLIENT_SSH="${CLIENT_SSH:-}"
+CLIENT_DEV="${CLIENT_DEV:-rocep23s0}"
+NUM_VFS="${NUM_VFS:-12}"
+JOURNAL_SINCE="${JOURNAL_SINCE:-$(uptime -s)}"
+EXPECT_KERNEL="${EXPECT_KERNEL:-}"
+EXPECT_BOOT_ID_CHANGED_FROM="${EXPECT_BOOT_ID_CHANGED_FROM:-}"
+LOG_DIR="${LOG_DIR:-logs/validation}"
+
+usage() {
+	cat <<EOF
+Usage: $0 --stage <post-reboot|post-upgrade|manual>
+
+Run the validation gate used before declaring the CX3 Pro inbox patch working.
+This script does not reboot, upgrade packages, install modules, detach VM
+disks, or run storage writes. It validates the already-booted system.
+
+Stages:
+  post-reboot    Use after a reboot into the patched-module kernel.
+  post-upgrade   Use after package upgrade, module rebuild/install, and reboot.
+  manual         Same checks without implying a lifecycle stage.
+
+Environment:
+  CLIENT_SSH=...                  Required for RDMA-CM unless RUN_RDMACM=0.
+  CLIENT_DEV=...                  Remote RDMA device. Default: rocep23s0.
+  NUM_VFS=...                     VF count to test. Default: 12.
+  JOURNAL_SINCE=...               Kernel log scan start. Default: uptime -s.
+  EXPECT_KERNEL=...               Optional exact kernel release to require.
+  EXPECT_BOOT_ID_CHANGED_FROM=... Optional previous boot ID that must differ.
+  RUN_UPDATE_CHECK=0              Skip port-update-check.
+  RUN_RDMACM=0                    Skip VF RDMA-CM traffic test.
+  RUN_NVMET_STATUS=1              Include nvmet-vm-lab status in update check.
+  RUN_BUILD=1                     Include build-only check in update check.
+  RUN_VERIFY=0                    Skip verify-pve7 through port-update-check.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+	--stage)
+		shift
+		STAGE="${1:-}"
+		;;
+	--post-reboot)
+		STAGE="post-reboot"
+		;;
+	--post-upgrade)
+		STAGE="post-upgrade"
+		;;
+	-h|--help)
+		usage
+		exit 0
+		;;
+	*)
+		echo "error: unknown option: $1" >&2
+		usage >&2
+		exit 2
+		;;
+	esac
+	shift
+done
+
+case "$STAGE" in
+post-reboot|post-upgrade|manual) ;;
+"")
+	echo "error: set --stage post-reboot, post-upgrade, or manual" >&2
+	usage >&2
+	exit 2
+	;;
+*)
+	echo "error: invalid stage: $STAGE" >&2
+	usage >&2
+	exit 2
+	;;
+esac
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$REPO_ROOT"
+mkdir -p "$LOG_DIR"
+LOG="${LOG_DIR}/${STAGE}-$(date +%Y%m%d-%H%M%S).log"
+
+section() {
+	printf '\n=== %s ===\n' "$*" | tee -a "$LOG"
+}
+
+run_logged() {
+	printf '+ %s\n' "$*" | tee -a "$LOG"
+	"$@" 2>&1 | tee -a "$LOG"
+	local rc=${PIPESTATUS[0]}
+	if [ "$rc" -ne 0 ]; then
+		printf 'error: command failed with rc=%s\n' "$rc" | tee -a "$LOG"
+		exit "$rc"
+	fi
+}
+
+KVER="$(uname -r)"
+BOOT_ID="$(cat /proc/sys/kernel/random/boot_id)"
+BOOT_TIME="$(uptime -s)"
+
+section "host"
+{
+	hostname
+	printf 'stage=%s\n' "$STAGE"
+	printf 'kernel=%s\n' "$KVER"
+	printf 'boot_id=%s\n' "$BOOT_ID"
+	printf 'boot_time=%s\n' "$BOOT_TIME"
+	printf 'journal_since=%s\n' "$JOURNAL_SINCE"
+} | tee -a "$LOG"
+
+if [ -n "$EXPECT_KERNEL" ] && [ "$KVER" != "$EXPECT_KERNEL" ]; then
+	echo "error: expected kernel ${EXPECT_KERNEL}, got ${KVER}" | tee -a "$LOG"
+	exit 1
+fi
+
+if [ -n "$EXPECT_BOOT_ID_CHANGED_FROM" ] && [ "$BOOT_ID" = "$EXPECT_BOOT_ID_CHANGED_FROM" ]; then
+	echo "error: boot ID did not change from ${EXPECT_BOOT_ID_CHANGED_FROM}" | tee -a "$LOG"
+	exit 1
+fi
+
+if [ "$RUN_UPDATE_CHECK" = "1" ]; then
+	section "port update check"
+	run_logged env RUN_BUILD="$RUN_BUILD" RUN_VERIFY="$RUN_VERIFY" RUN_NVMET_STATUS="$RUN_NVMET_STATUS" \
+		JOURNAL_SINCE="$JOURNAL_SINCE" NUM_VFS="$NUM_VFS" ./port-update-check
+else
+	section "port update check"
+	echo "skipped because RUN_UPDATE_CHECK=${RUN_UPDATE_CHECK}" | tee -a "$LOG"
+fi
+
+if [ "$RUN_RDMACM" = "1" ]; then
+	if [ -z "$CLIENT_SSH" ]; then
+		echo "error: CLIENT_SSH is required for the VF RDMA-CM validation gate" | tee -a "$LOG"
+		exit 1
+	fi
+	section "vf rdma-cm map"
+	run_logged env NUM_VFS="$NUM_VFS" ./test_vf_rdmacm --list
+	section "vf rdma-cm traffic"
+	run_logged env CLIENT_SSH="$CLIENT_SSH" CLIENT_DEV="$CLIENT_DEV" NUM_VFS="$NUM_VFS" ./test_vf_rdmacm
+else
+	section "vf rdma-cm traffic"
+	echo "skipped because RUN_RDMACM=${RUN_RDMACM}" | tee -a "$LOG"
+fi
+
+section "summary"
+echo "port-validation ${STAGE}: PASS" | tee -a "$LOG"
+echo "log=${LOG}" | tee -a "$LOG"

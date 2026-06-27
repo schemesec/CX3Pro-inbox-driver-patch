@@ -1,0 +1,276 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ACTION="${1:-}"
+TARGET_HOST="${TARGET_HOST:-pvs1}"
+TARGET_SSH="${TARGET_SSH:-root@192.168.1.50}"
+INITIATOR_HOST="${INITIATOR_HOST:-pvs3}"
+INITIATOR_SSH="${INITIATOR_SSH:-root@192.168.1.51}"
+TARGET_ADDR="${TARGET_ADDR:-192.168.20.50}"
+TARGET_PORT="${TARGET_PORT:-4520}"
+NQN="${NQN:-nqn.2026-06.local.pvs1:cx3pro-vm100-nullblk}"
+VMID="${VMID:-100}"
+VM_DISK_SLOT="${VM_DISK_SLOT:-scsi1}"
+NULLBLK_GB="${NULLBLK_GB:-8}"
+ALLOW_WRITE="${ALLOW_WRITE:-0}"
+FORCE_DETACH="${FORCE_DETACH:-0}"
+SMOKE_MIB="${SMOKE_MIB:-64}"
+JOURNAL_SINCE="${JOURNAL_SINCE:-$(date '+%F 00:00:00')}"
+CONNECT_TIMEOUT="${CONNECT_TIMEOUT:-15}"
+SSH_OPTS="${SSH_OPTS:--o BatchMode=yes -o StrictHostKeyChecking=accept-new}"
+SSH_BIN="${SSH_BIN:-ssh}"
+
+usage() {
+	cat <<EOF
+Usage: $0 <action>
+
+Actions:
+  setup-target     Create a disposable pvs1 null_blk-backed nvmet-rdma target.
+  connect          Connect pvs3 to the target with nvme-rdma.
+  attach-vm        Attach the connected pvs3 namespace to VMID at VM_DISK_SLOT.
+  guest-smoke      Run a small bounded write/read smoke test inside the VM.
+  status           Show target, initiator, VM disk, and bounded kernel scan state.
+  detach-vm        Remove VM_DISK_SLOT from VMID.
+  disconnect       Disconnect pvs3 from the NQN.
+  teardown-target  Remove the pvs1 target and unload null_blk if possible.
+  teardown         detach-vm, disconnect, then teardown-target.
+
+Safety:
+  The target is backed by null_blk by default. It is volatile and not persistent.
+  guest-smoke refuses to write unless ALLOW_WRITE=1 is set.
+  Default guest-smoke volume is SMOKE_MIB=64, not an endurance test.
+
+Environment:
+  TARGET_SSH=${TARGET_SSH}
+  INITIATOR_SSH=${INITIATOR_SSH}
+  TARGET_ADDR=${TARGET_ADDR}
+  TARGET_PORT=${TARGET_PORT}
+  NQN=${NQN}
+  VMID=${VMID}
+  VM_DISK_SLOT=${VM_DISK_SLOT}
+  NULLBLK_GB=${NULLBLK_GB}
+  FORCE_DETACH=${FORCE_DETACH}
+  JOURNAL_SINCE=${JOURNAL_SINCE}
+  SSH_BIN=${SSH_BIN}
+
+If key auth is not configured, run from a trusted admin shell with an explicit
+SSH command, for example:
+
+  SSHPASS=... SSH_BIN='sshpass -e ssh' SSH_OPTS='-o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=accept-new' $0 status
+EOF
+}
+
+die() {
+	printf 'error: %s\n' "$*" >&2
+	exit 1
+}
+
+run_target() {
+	$SSH_BIN ${SSH_OPTS} "$TARGET_SSH" "$@"
+}
+
+run_initiator() {
+	$SSH_BIN ${SSH_OPTS} "$INITIATOR_SSH" "$@"
+}
+
+target_script() {
+	run_target "NQN='$NQN' TARGET_PORT='$TARGET_PORT' TARGET_ADDR='$TARGET_ADDR' NULLBLK_GB='$NULLBLK_GB' bash -s" <<'REMOTE'
+set -euo pipefail
+rm -f "/sys/kernel/config/nvmet/ports/${TARGET_PORT}/subsystems/${NQN}" 2>/dev/null || true
+rmdir "/sys/kernel/config/nvmet/ports/${TARGET_PORT}" 2>/dev/null || true
+if [ -d "/sys/kernel/config/nvmet/subsystems/${NQN}" ]; then
+	echo 0 >"/sys/kernel/config/nvmet/subsystems/${NQN}/namespaces/1/enable" 2>/dev/null || true
+	rmdir "/sys/kernel/config/nvmet/subsystems/${NQN}/namespaces/1" 2>/dev/null || true
+	rmdir "/sys/kernel/config/nvmet/subsystems/${NQN}" 2>/dev/null || true
+fi
+modprobe null_blk nr_devices=1 gb="${NULLBLK_GB}" queue_mode=2
+modprobe nvmet
+modprobe nvmet_rdma
+[ -b /dev/nullb0 ]
+mkdir -p "/sys/kernel/config/nvmet/subsystems/${NQN}/namespaces/1"
+echo 1 >"/sys/kernel/config/nvmet/subsystems/${NQN}/attr_allow_any_host"
+echo -n /dev/nullb0 >"/sys/kernel/config/nvmet/subsystems/${NQN}/namespaces/1/device_path"
+echo 1 >"/sys/kernel/config/nvmet/subsystems/${NQN}/namespaces/1/enable"
+mkdir -p "/sys/kernel/config/nvmet/ports/${TARGET_PORT}"
+echo ipv4 >"/sys/kernel/config/nvmet/ports/${TARGET_PORT}/addr_adrfam"
+echo rdma >"/sys/kernel/config/nvmet/ports/${TARGET_PORT}/addr_trtype"
+echo "${TARGET_ADDR}" >"/sys/kernel/config/nvmet/ports/${TARGET_PORT}/addr_traddr"
+echo "${TARGET_PORT}" >"/sys/kernel/config/nvmet/ports/${TARGET_PORT}/addr_trsvcid"
+ln -s "/sys/kernel/config/nvmet/subsystems/${NQN}" "/sys/kernel/config/nvmet/ports/${TARGET_PORT}/subsystems/${NQN}"
+printf 'target ready: %s %s:%s backing=/dev/nullb0 size=%sG\n' "$NQN" "$TARGET_ADDR" "$TARGET_PORT" "$NULLBLK_GB"
+REMOTE
+}
+
+connect_initiator() {
+	run_initiator "NQN='$NQN' TARGET_ADDR='$TARGET_ADDR' TARGET_PORT='$TARGET_PORT' CONNECT_TIMEOUT='$CONNECT_TIMEOUT' bash -s" <<'REMOTE'
+set -euo pipefail
+nvme discover -t rdma -a "$TARGET_ADDR" -s "$TARGET_PORT"
+if ! nvme list-subsys | grep -q "$NQN"; then
+	nvme connect -t rdma -n "$NQN" -a "$TARGET_ADDR" -s "$TARGET_PORT"
+fi
+deadline=$((SECONDS + CONNECT_TIMEOUT))
+while [ "$SECONDS" -lt "$deadline" ]; do
+	if nvme list-subsys | grep -A3 "$NQN" | grep -q ' live'; then
+		nvme list-subsys | grep -A3 "$NQN"
+		exit 0
+	fi
+	sleep 1
+done
+echo "connected controller did not become live for $NQN" >&2
+exit 1
+REMOTE
+}
+
+initiator_device() {
+	run_initiator "NQN='$NQN' bash -s" <<'REMOTE'
+set -euo pipefail
+for dev in /dev/nvme*n1; do
+	[ -b "$dev" ] || continue
+	if nvme list-subsys "$dev" 2>/dev/null | grep -q "$NQN"; then
+		readlink -f "$dev"
+		exit 0
+	fi
+done
+exit 1
+REMOTE
+}
+
+initiator_by_id() {
+	run_initiator "DEV='$(initiator_device)' bash -s" <<'REMOTE'
+set -euo pipefail
+for link in /dev/disk/by-id/nvme-*; do
+	[ -e "$link" ] || continue
+	if [ "$(readlink -f "$link")" = "$DEV" ]; then
+		printf '%s\n' "$link"
+		exit 0
+	fi
+done
+exit 1
+REMOTE
+}
+
+attach_vm() {
+	local disk
+	disk="$(initiator_by_id)"
+	run_initiator "qm set '$VMID' -'$VM_DISK_SLOT' '$disk,backup=0,cache=none,discard=on,ssd=1'"
+	run_initiator "qm config '$VMID' | grep '^${VM_DISK_SLOT}:'"
+}
+
+guest_disk() {
+	run_initiator "VMID='$VMID' VM_DISK_SLOT='$VM_DISK_SLOT' bash -s" <<'REMOTE'
+set -euo pipefail
+serial="drive-${VM_DISK_SLOT}"
+qm guest exec "$VMID" -- bash -lc "lsblk -ndo NAME,SERIAL | awk -v serial='$serial' '\$2 == serial { print \"/dev/\" \$1; exit }'" |
+	awk -F'"' '/out-data/ { print $4 }' |
+	head -1
+REMOTE
+}
+
+guest_smoke() {
+	[ "$ALLOW_WRITE" = "1" ] || die "guest-smoke writes to the VM disk; set ALLOW_WRITE=1 and keep SMOKE_MIB small"
+	case "$SMOKE_MIB" in
+	''|*[!0-9]*) die "SMOKE_MIB must be a positive integer" ;;
+	esac
+	[ "$SMOKE_MIB" -gt 0 ] || die "SMOKE_MIB must be greater than zero"
+	[ "$SMOKE_MIB" -le 1024 ] || die "SMOKE_MIB=${SMOKE_MIB} is too large for this smoke script; use an explicit custom test for larger runs"
+	local disk
+	disk="$(guest_disk)"
+	[ -n "$disk" ] || die "could not find guest disk for ${VM_DISK_SLOT}"
+	run_initiator "VMID='$VMID' DISK='$disk' SMOKE_MIB='$SMOKE_MIB' bash -s" <<'REMOTE'
+set -euo pipefail
+qm guest exec "$VMID" -- bash -lc "set -euo pipefail; lsblk -o NAME,TYPE,SIZE,MODEL,SERIAL,MOUNTPOINTS '$DISK'; dd if=/dev/zero of='$DISK' bs=1M count='$SMOKE_MIB' oflag=direct status=none; sync; dd if='$DISK' of=/dev/null bs=1M count='$SMOKE_MIB' iflag=direct status=none; echo smoke-pass mib='$SMOKE_MIB'"
+REMOTE
+}
+
+status() {
+	printf '=== target %s ===\n' "$TARGET_HOST"
+	run_target "NQN='$NQN' TARGET_PORT='$TARGET_PORT' JOURNAL_SINCE='$JOURNAL_SINCE' bash -s" <<'REMOTE'
+set -euo pipefail
+find /sys/kernel/config/nvmet -maxdepth 4 \( -name "*${NQN##*:}*" -o -name "$TARGET_PORT" -o -name "$NQN" \) -printf '%y %p -> %l\n' 2>/dev/null | sort || true
+lsblk -o NAME,TYPE,SIZE /dev/nullb0 2>/dev/null || true
+lsmod | egrep '(^nvmet|^null_blk|rdma_cm|mlx4)' || true
+echo "--- errors since ${JOURNAL_SINCE} ---"
+journalctl -k --since "$JOURNAL_SINCE" -g 'BUG|Oops|WARNING|Call Trace|Unknown symbol|disagrees|__warn|Bad wc|Completion with error|Failed status|vhcr command:0x3a|mlx4|I/O error|reset controller|timed out' --no-pager |
+	grep -v '^-- No entries --' | tail -80 || true
+REMOTE
+	printf '=== initiator %s ===\n' "$INITIATOR_HOST"
+	run_initiator "NQN='$NQN' VMID='$VMID' VM_DISK_SLOT='$VM_DISK_SLOT' JOURNAL_SINCE='$JOURNAL_SINCE' bash -s" <<'REMOTE'
+set -euo pipefail
+nvme list-subsys | grep -A3 "$NQN" || true
+qm config "$VMID" | grep "^${VM_DISK_SLOT}:" || true
+qm guest exec "$VMID" -- lsblk -o NAME,TYPE,SIZE,MODEL,SERIAL,MOUNTPOINTS 2>/dev/null | sed -n '1,120p' || true
+echo "--- errors since ${JOURNAL_SINCE} ---"
+journalctl -k --since "$JOURNAL_SINCE" -g 'BUG|Oops|WARNING|Call Trace|Unknown symbol|disagrees|__warn|Bad wc|Completion with error|Failed status|vhcr command:0x3a|mlx4|I/O error|reset controller|timed out' --no-pager |
+	grep -v '^-- No entries --' | tail -80 || true
+REMOTE
+}
+
+detach_vm() {
+	run_initiator "VMID='$VMID' VM_DISK_SLOT='$VM_DISK_SLOT' NQN='$NQN' FORCE_DETACH='$FORCE_DETACH' bash -s" <<'REMOTE'
+set -euo pipefail
+line="$(qm config "$VMID" | awk -v slot="${VM_DISK_SLOT}:" '$1 == slot { print }')"
+[ -n "$line" ] || { echo "${VM_DISK_SLOT} is already absent"; exit 0; }
+if [ "$FORCE_DETACH" = "1" ]; then
+	qm set "$VMID" -delete "$VM_DISK_SLOT"
+	exit 0
+fi
+dev=""
+for candidate in /dev/nvme*n1; do
+	[ -b "$candidate" ] || continue
+	if nvme list-subsys "$candidate" 2>/dev/null | grep -q "$NQN"; then
+		dev="$(readlink -f "$candidate")"
+		break
+	fi
+done
+[ -n "$dev" ] || {
+	echo "refusing to detach ${VM_DISK_SLOT}: cannot identify live device for ${NQN}; set FORCE_DETACH=1 to override" >&2
+	exit 1
+}
+ok=0
+for link in /dev/disk/by-id/nvme-*; do
+	[ -e "$link" ] || continue
+	[ "$(readlink -f "$link")" = "$dev" ] || continue
+	case "$line" in
+	*"${link}"*) ok=1 ;;
+	esac
+done
+[ "$ok" -eq 1 ] || {
+	echo "refusing to detach ${VM_DISK_SLOT}: config does not match the expected NVMe/RDMA by-id path" >&2
+	echo "$line" >&2
+	exit 1
+}
+qm set "$VMID" -delete "$VM_DISK_SLOT"
+REMOTE
+}
+
+disconnect_initiator() {
+	run_initiator "nvme disconnect -n '$NQN' || true"
+}
+
+teardown_target() {
+	run_target "NQN='$NQN' TARGET_PORT='$TARGET_PORT' bash -s" <<'REMOTE'
+set -euo pipefail
+rm -f "/sys/kernel/config/nvmet/ports/${TARGET_PORT}/subsystems/${NQN}" 2>/dev/null || true
+rmdir "/sys/kernel/config/nvmet/ports/${TARGET_PORT}" 2>/dev/null || true
+if [ -d "/sys/kernel/config/nvmet/subsystems/${NQN}" ]; then
+	echo 0 >"/sys/kernel/config/nvmet/subsystems/${NQN}/namespaces/1/enable" 2>/dev/null || true
+	rmdir "/sys/kernel/config/nvmet/subsystems/${NQN}/namespaces/1" 2>/dev/null || true
+	rmdir "/sys/kernel/config/nvmet/subsystems/${NQN}" 2>/dev/null || true
+fi
+modprobe -r null_blk 2>/dev/null || true
+REMOTE
+}
+
+case "$ACTION" in
+	setup-target) target_script ;;
+	connect) connect_initiator ;;
+	attach-vm) attach_vm ;;
+	guest-smoke) guest_smoke ;;
+	status) status ;;
+	detach-vm) detach_vm ;;
+	disconnect) disconnect_initiator ;;
+	teardown-target) teardown_target ;;
+	teardown) detach_vm || true; disconnect_initiator; teardown_target ;;
+	-h|--help|'') usage; [ -n "$ACTION" ] ;;
+	*) usage >&2; die "unknown action: $ACTION" ;;
+esac

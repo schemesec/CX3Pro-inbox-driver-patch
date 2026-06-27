@@ -183,3 +183,77 @@ Previously observed and fixed:
 - VM 100 uses its existing OVMF/i440fx topology for this functional validation. Q35/PCIe passthrough remains a separate deployment-topology test; it is not required to explain the validated RoCEv2 data path above.
 - After that corrected guest reboot, a single-shell dual-SSH `ib_write_bw` run between pvs1 and the Debian VF at `192.168.20.171` passed at `50.00 Gbit/sec` average with IPv4-mapped RoCEv2 GIDs and no new bounded host driver error entries.
 - Using stock Debian `nvme-rdma` above the reboot-persistent guest VF patches, the guest successfully ran `nvme discover -t rdma -a 192.168.20.51 -s 4420`, connected `schemesec:nvme:rg-pve0`, listed its 3.76 TB namespace, and disconnected cleanly. This validates the target storage path through the passed-through RoCEv2 VF without replacing current NVMe/RDMA drivers.
+
+## Inbox module update workflow validation, 2026-06-27
+
+- Validation policy update: future entries should distinguish pre-upgrade,
+  post-reboot, and post-upgrade states. A system is not considered working
+  across a reboot or upgrade until `port-validation --stage post-reboot` and
+  `port-validation --stage post-upgrade`, respectively, pass with the
+  cross-host VF RDMA-CM traffic test enabled.
+- `preflight-upgrade.sh` now prints the exact validated Proxmox packaging ref
+  for kernel `7.0.2-6-pve`:
+  `87f22e55de30d73b83722b86790394564036b33c`.
+- The known-ref map also covers the older tested kernel `7.0.2-2-pve`:
+  `59dd19a1c4f66f932d222eac91f9f1454f9b10cc`.
+- `find-pve-kernel-ref` was added and validated against both currently tested
+  kernels:
+  - `7.0.2-6-pve` -> `87f22e55de30d73b83722b86790394564036b33c`,
+    `ubuntu-kernel` gitlink `69bb061d6b71ee9b43e6584cc16d2a8853e81fe6`,
+    `zfsonlinux` gitlink `069198f9d5ca7876a4af06da2c42f848f0d0552e`.
+  - `7.0.2-2-pve` -> `59dd19a1c4f66f932d222eac91f9f1454f9b10cc`,
+    `ubuntu-kernel` gitlink `4081a41e751a25370006d1a3bd7d07cc85a91440`,
+    `zfsonlinux` gitlink `c03fdf105caad6054c575270da9e39b28b050b9f`.
+- `install-pve7.sh --apply-check-only --no-apt` was run without manually
+  setting `PVE_KERNEL_REF`; the installer auto-selected the known ref above,
+  reset the pve-kernel checkout to `87f22e5 update ABI file for
+  7.0.2-6-pve (amd64)`, and applied
+  `0066-mlx4-preserve-rocev2-gid-type-for-sriov-vfs.patch` cleanly against
+  source version `7.0.2`.
+- `install-pve7.sh --build-only --no-apt` was run without manually setting
+  `PVE_KERNEL_REF`; it used the same auto-selected ref, rebuilt
+  `mlx4_core.ko`, `mlx4_en.ko`, and `mlx4_ib.ko`, verified `7.0.2-6-pve`
+  vermagic, and confirmed `mlx4_ib` symbol CRCs match the patched
+  `mlx4_core` exports. Log:
+  `/root/CX3Pro-inbox-driver-patch/logs/install-20260627-131522.log`.
+- This fixes the earlier unsafe default where the installer could follow the
+  current Proxmox repository branch and land on a newer source version such as
+  `7.0.12` when the target host was still running `7.0.2-6-pve`.
+- pvs3 root SSH key auth to pvs1 root was installed so repository tests that
+  orchestrate both hosts can run directly from pvs3 without password prompts.
+- `nvmet-vm-lab status` passed from the pvs3 repository using default
+  batch-mode SSH. It confirmed the live pvs1 `null_blk` NVMe/RDMA target,
+  pvs3 `nvme1` RDMA controller, VM 100 `scsi1` attachment, and clean bounded
+  pvs1/pvs3 kernel error scans.
+- `CLIENT_SSH=root@192.168.1.50 CLIENT_DEV=rocep23s0 NUM_VFS=12
+  ./test_vf_rdmacm` now runs directly from pvs3 after installing pvs3 root key
+  auth to pvs1. It passed for all 11 host-owned VFs and skipped VF11 because
+  it is assigned to `vfio-pci`.
+
+  ```text
+  VF0  192.168.20.160 mlx4_0   50.85 Gbit/sec
+  VF1  192.168.20.161 mlx4_1   49.63 Gbit/sec
+  VF2  192.168.20.162 mlx4_2   50.38 Gbit/sec
+  VF3  192.168.20.163 mlx4_3   50.20 Gbit/sec
+  VF4  192.168.20.164 mlx4_4   50.80 Gbit/sec
+  VF5  192.168.20.165 mlx4_5   49.40 Gbit/sec
+  VF6  192.168.20.166 mlx4_6   50.02 Gbit/sec
+  VF7  192.168.20.167 mlx4_7   49.63 Gbit/sec
+  VF8  192.168.20.168 mlx4_8   49.33 Gbit/sec
+  VF9  192.168.20.169 mlx4_9   49.51 Gbit/sec
+  VF10 192.168.20.170 mlx4_10  50.07 Gbit/sec
+  ```
+
+  Post-test pvs1 and pvs3 scans found no matching driver warnings, completion
+  errors, call traces, mlx4 failures, or stale `ib_write_bw`/`test_vf_rdmacm`
+  processes.
+- `JOURNAL_SINCE='2026-06-27 13:12:00' PF=enp23s0 NUM_VFS=12
+  VF_VLAN=20 VLAN10_IP=192.168.10.56/24
+  VLAN20_IP=192.168.20.56/24 ./verify-pve7.sh` passed after the direct
+  RDMA-CM sweep and build-only check, including module override resolution,
+  PF/VF RoCEv2 GIDs, VF VLAN/qos policy, PFC on PCP 3, PF VLAN egress mapping,
+  and bounded kernel warning scan.
+- `RUN_BUILD=0 JOURNAL_SINCE='2026-06-27 13:12:00' ./port-update-check`
+  passed. The wrapper ran preflight, `find-pve-kernel-ref`, auto-pinned
+  apply-check, runtime verifier, and `nvmet-vm-lab status` without installing
+  modules, rebooting, detaching VM disks, or running storage writes.

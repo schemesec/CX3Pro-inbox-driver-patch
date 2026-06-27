@@ -1,0 +1,30 @@
+
+************************************
+* Waiting for client to connect... *
+************************************
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Dual-port       : OFF		Device         : mlx4_7
+ Number of qps   : 1		Transport type : IB
+ Connection type : RC		Using SRQ      : OFF
+ PCIe relax order: ON		Lock-free      : OFF
+ ibv_wr* API     : OFF		Using DDP      : OFF
+ CQ Moderation   : 1
+ Mtu             : 2048[B]
+ Link type       : Ethernet
+ GID index       : 1
+ Max inline data : 0[B]
+ rdma_cm QPs	 : ON
+ Data ex. method : rdma_cm
+---------------------------------------------------------------------------------------
+ Waiting for client rdma_cm QP to connect
+ Please run the same command with the IB/RoCE interface IP
+---------------------------------------------------------------------------------------
+ local address: LID 0000 QPN 0x0c6b PSN 0x6aeebc
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:167
+ remote address: LID 0000 QPN 0x039a PSN 0x330d1c
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:50
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             49.63              49.63  		     0.094664
+---------------------------------------------------------------------------------------

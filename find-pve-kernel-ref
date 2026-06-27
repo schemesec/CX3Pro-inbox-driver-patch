@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+KVER="${KVER:-${1:-$(uname -r)}}"
+BUILD_ROOT="${BUILD_ROOT:-/root/cx3pro-inbox-build}"
+PVE_KERNEL_REPO="${PVE_KERNEL_REPO:-https://github.com/proxmox/pve-kernel.git}"
+PVE_TREE="${PVE_TREE:-${BUILD_ROOT}/pve-kernel}"
+MAX_DEEPEN="${MAX_DEEPEN:-1200}"
+STEP="${STEP:-100}"
+
+usage() {
+	cat <<EOF
+Usage: $0 [kernel-release]
+
+Find the pve-kernel packaging commit that appears to match a Proxmox kernel
+release, then print the gitlinks for the source submodules pinned by that
+packaging commit.
+
+Environment:
+  KVER=...             Kernel release. Default: argument or uname -r.
+  BUILD_ROOT=...       Build/cache root. Default: /root/cx3pro-inbox-build.
+  PVE_KERNEL_REPO=...  pve-kernel repository URL.
+  PVE_TREE=...         Existing or new pve-kernel checkout.
+  MAX_DEEPEN=...       Maximum shallow history depth to search. Default: 1200.
+  STEP=...             Depth increment per search pass. Default: 100.
+EOF
+}
+
+case "${1:-}" in
+	-h|--help)
+		usage
+		exit 0
+		;;
+esac
+
+run_git() {
+	git -C "$PVE_TREE" "$@"
+}
+
+ensure_tree() {
+	mkdir -p "$BUILD_ROOT"
+	if [ -d "${PVE_TREE}/.git" ]; then
+		run_git remote set-url origin "$PVE_KERNEL_REPO"
+		run_git fetch --depth "$STEP" origin
+	else
+		git clone --depth "$STEP" "$PVE_KERNEL_REPO" "$PVE_TREE"
+	fi
+}
+
+find_ref() {
+	local depth="$STEP" ref=""
+	while [ "$depth" -le "$MAX_DEEPEN" ]; do
+		ref="$(run_git log --format='%H%x09%s' --all --grep="$KVER" |
+			awk -F '\t' -v kver="$KVER" '
+				index($2, "update ABI file for " kver) { print $1; exit }
+				index($2, kver) && !found { found = $1 }
+				END { if (found) print found }
+			')"
+		if [ -n "$ref" ]; then
+			printf '%s\n' "$ref"
+			return 0
+		fi
+		depth=$((depth + STEP))
+		run_git fetch --deepen "$STEP" origin
+	done
+	return 1
+}
+
+gitlink() {
+	local ref="$1" path="$2"
+	run_git ls-tree "$ref" "$path" | awk '{ print $3 }'
+}
+
+ensure_tree
+ref="$(find_ref || true)"
+if [ -z "$ref" ]; then
+	echo "error: could not find a pve-kernel packaging commit matching ${KVER} within depth ${MAX_DEEPEN}" >&2
+	exit 1
+fi
+
+subject="$(run_git log -1 --format='%s' "$ref")"
+ubuntu_ref="$(gitlink "$ref" submodules/ubuntu-kernel)"
+zfs_ref="$(gitlink "$ref" submodules/zfsonlinux)"
+
+printf 'kernel=%s\n' "$KVER"
+printf 'pve_kernel_ref=%s\n' "$ref"
+printf 'subject=%s\n' "$subject"
+printf 'ubuntu_kernel_ref=%s\n' "$ubuntu_ref"
+printf 'zfsonlinux_ref=%s\n' "$zfs_ref"
+printf '\n'
+printf 'Use:\n'
+printf '  PVE_KERNEL_REF=%s ./install-pve7.sh --apply-check-only --no-apt\n' "$ref"
+printf '  PVE_KERNEL_REF=%s ./install-pve7.sh --build-only --no-apt\n' "$ref"
