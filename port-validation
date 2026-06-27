@@ -9,11 +9,14 @@ RUN_BUILD="${RUN_BUILD:-0}"
 RUN_VERIFY="${RUN_VERIFY:-1}"
 CLIENT_SSH="${CLIENT_SSH:-}"
 CLIENT_DEV="${CLIENT_DEV:-rocep23s0}"
+PF="${PF:-enp23s0}"
 NUM_VFS="${NUM_VFS:-12}"
 JOURNAL_SINCE="${JOURNAL_SINCE:-$(uptime -s)}"
 EXPECT_KERNEL="${EXPECT_KERNEL:-}"
 EXPECT_BOOT_ID_CHANGED_FROM="${EXPECT_BOOT_ID_CHANGED_FROM:-}"
 LOG_DIR="${LOG_DIR:-logs/validation}"
+WAIT_RDMACM_LINK_SECS="${WAIT_RDMACM_LINK_SECS:-120}"
+RDMACM_SETTLE_SECS="${RDMACM_SETTLE_SECS:-10}"
 
 usage() {
 	cat <<EOF
@@ -31,6 +34,7 @@ Stages:
 Environment:
   CLIENT_SSH=...                  Required for RDMA-CM unless RUN_RDMACM=0.
   CLIENT_DEV=...                  Remote RDMA device. Default: rocep23s0.
+  PF=...                          Local PF netdev. Default: enp23s0.
   NUM_VFS=...                     VF count to test. Default: 12.
   JOURNAL_SINCE=...               Kernel log scan start. Default: uptime -s.
   EXPECT_KERNEL=...               Optional exact kernel release to require.
@@ -40,6 +44,8 @@ Environment:
   RUN_NVMET_STATUS=1              Include nvmet-vm-lab status in update check.
   RUN_BUILD=1                     Include build-only check in update check.
   RUN_VERIFY=0                    Skip verify-pve7 through port-update-check.
+  WAIT_RDMACM_LINK_SECS=...       Wait for PF/VF RDMA links. Default: 120.
+  RDMACM_SETTLE_SECS=...          Extra settle delay after links active. Default: 10.
 EOF
 }
 
@@ -101,6 +107,45 @@ run_logged() {
 	fi
 }
 
+wait_for_rdmacm_links() {
+	local elapsed=0
+	while [ "$elapsed" -lt "$WAIT_RDMACM_LINK_SECS" ]; do
+		if rdma link show 2>/dev/null | awk -v n="$NUM_VFS" -v pfname="$PF" '
+			BEGIN { pf = 0; missing = 0 }
+			$0 ~ "netdev " pfname "([[:space:]]|$)" {
+				if ($0 ~ /state ACTIVE/) pf = 1
+			}
+			{
+				for (i = 0; i < n; i++) {
+					pat = "netdev " pfname "v" i "([[:space:]]|$)"
+					if ($0 ~ pat) {
+						seen[i] = 1
+						if ($0 ~ /state ACTIVE/) active[i] = 1
+					}
+				}
+			}
+			END {
+				for (i = 0; i < n - 1; i++) {
+					if (!seen[i] || !active[i]) missing = 1
+				}
+				exit (pf && !missing) ? 0 : 1
+			}
+		'; then
+			echo "RDMA PF and host-owned VF links are ACTIVE" | tee -a "$LOG"
+			if [ "$RDMACM_SETTLE_SECS" -gt 0 ]; then
+				echo "settling ${RDMACM_SETTLE_SECS}s before RDMA-CM traffic" | tee -a "$LOG"
+				sleep "$RDMACM_SETTLE_SECS"
+			fi
+			return 0
+		fi
+		sleep 1
+		elapsed=$((elapsed + 1))
+	done
+	echo "error: RDMA PF/VF links did not become ACTIVE within ${WAIT_RDMACM_LINK_SECS}s" | tee -a "$LOG"
+	rdma link show 2>&1 | tee -a "$LOG" || true
+	return 1
+}
+
 KVER="$(uname -r)"
 BOOT_ID="$(cat /proc/sys/kernel/random/boot_id)"
 BOOT_TIME="$(uptime -s)"
@@ -139,6 +184,8 @@ if [ "$RUN_RDMACM" = "1" ]; then
 		echo "error: CLIENT_SSH is required for the VF RDMA-CM validation gate" | tee -a "$LOG"
 		exit 1
 	fi
+	section "rdma-cm link readiness"
+	wait_for_rdmacm_links
 	section "vf rdma-cm map"
 	run_logged env NUM_VFS="$NUM_VFS" ./test_vf_rdmacm --list
 	section "vf rdma-cm traffic"

@@ -267,3 +267,43 @@ Previously observed and fixed:
   passed. The wrapper ran preflight, `find-pve-kernel-ref`, auto-pinned
   apply-check, runtime verifier, and `nvmet-vm-lab status` without installing
   modules, rebooting, detaching VM disks, or running storage writes.
+
+## Automated post-reboot validation, 2026-06-27
+
+- Fresh boot tested: `c685c66f-4eeb-4178-a17f-98043460b7b1`, kernel
+  `7.0.2-6-pve`, boot time `2026-06-27 15:22:08`.
+- Installed boot fix: `cx3pro-rdma-postboot.service` now runs after
+  `pve-guests.service`, waits 25 seconds for guest VF reset/probe activity,
+  brings PF/VF netdevs up, reloads only `mlx4_ib`, waits for PF/VF RDMA links,
+  and settles for 20 seconds.
+- Evidence for the ordering: the earlier pre-guest reload still failed VF0
+  with `Bad wc status 12`; a reload after VM 100 started and VF11 moved to
+  `vfio-pci` made the full VF sweep pass; the automated service ordering then
+  reproduced that pass after a clean reboot.
+- VM 100 remained running with VF11 bound to `vfio-pci`; the host tested only
+  VF0-VF10.
+- Passing command:
+  `CLIENT_SSH=root@192.168.1.50 CLIENT_DEV=rocep23s0 NUM_VFS=12 RUN_BUILD=0 RUN_NVMET_STATUS=0 EXPECT_BOOT_ID_CHANGED_FROM=cec43e65-b89d-42ea-894e-761130ad20dc ./port-validation --stage post-reboot`
+- Passing log:
+  `/root/CX3Pro-inbox-driver-patch/logs/validation/post-reboot-20260627-152336.log`.
+- Validation result: `port-validation post-reboot: PASS`.
+- VF RDMA-CM results:
+
+  ```text
+  VF0  192.168.20.160 mlx4_0   50.53 Gbit/sec
+  VF1  192.168.20.161 mlx4_1   49.78 Gbit/sec
+  VF2  192.168.20.162 mlx4_2   49.54 Gbit/sec
+  VF3  192.168.20.163 mlx4_3   49.54 Gbit/sec
+  VF4  192.168.20.164 mlx4_4   50.45 Gbit/sec
+  VF5  192.168.20.165 mlx4_5   49.81 Gbit/sec
+  VF6  192.168.20.166 mlx4_6   49.24 Gbit/sec
+  VF7  192.168.20.167 mlx4_7   50.20 Gbit/sec
+  VF8  192.168.20.168 mlx4_8   49.56 Gbit/sec
+  VF9  192.168.20.169 mlx4_9   49.78 Gbit/sec
+  VF10 192.168.20.170 mlx4_10  50.49 Gbit/sec
+  ```
+
+- `verify-pve7.sh` inside the gate passed module override resolution,
+  `enable_mfunc_roce_v2=Y`, PF/VF RoCEv2 GIDs, VF VLAN 20/QoS 3 policy,
+  VF11 passthrough accounting, PFC on PCP 3, PF VLAN egress mapping, and a
+  bounded kernel warning scan.

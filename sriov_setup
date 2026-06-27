@@ -272,8 +272,103 @@ ExecStart=/usr/local/sbin/cx3pro-apply-vf-vlans.sh
 WantedBy=multi-user.target
 EOF_SERVICE
 
+echo
+echo "=== Creating RDMA post-boot settle service ==="
+install -m 0755 /dev/stdin /usr/local/sbin/cx3pro-rdma-postboot.sh <<'RDMAHELPER'
+#!/usr/bin/env bash
+set -euo pipefail
+
+PF="${PF:-enp23s0}"
+NUM_VFS="${NUM_VFS:-12}"
+WAIT_SECS="${WAIT_SECS:-120}"
+SETTLE_SECS="${SETTLE_SECS:-20}"
+START_DELAY_SECS="${START_DELAY_SECS:-25}"
+
+bring_links_up() {
+	ip link set dev "$PF" up 2>/dev/null || true
+	for i in $(seq 0 $((NUM_VFS - 2))); do
+		ip link set dev "${PF}v${i}" up 2>/dev/null || true
+	done
+}
+
+wait_links() {
+	local elapsed=0
+	while [ "$elapsed" -lt "$WAIT_SECS" ]; do
+		if rdma link show 2>/dev/null | awk -v pfname="$PF" -v n="$NUM_VFS" '
+			BEGIN { pf = 0; missing = 0 }
+			$0 ~ "netdev " pfname "([[:space:]]|$)" {
+				if ($0 ~ /state ACTIVE/) pf = 1
+			}
+			{
+				for (i = 0; i < n - 1; i++) {
+					pat = "netdev " pfname "v" i "([[:space:]]|$)"
+					if ($0 ~ pat) {
+						seen[i] = 1
+						if ($0 ~ /state ACTIVE/) active[i] = 1
+					}
+				}
+			}
+			END {
+				for (i = 0; i < n - 1; i++) {
+					if (!seen[i] || !active[i]) missing = 1
+				}
+				exit (pf && !missing) ? 0 : 1
+			}
+		'; then
+			return 0
+		fi
+		sleep 1
+		elapsed=$((elapsed + 1))
+	done
+	rdma link show || true
+	return 1
+}
+
+echo "waiting ${START_DELAY_SECS}s for guest VF reset/probe activity"
+sleep "$START_DELAY_SECS"
+
+echo "bringing host RDMA netdevs up"
+bring_links_up
+
+echo "waiting for initial RDMA links"
+wait_links
+
+if pgrep -x ib_write_bw >/dev/null 2>&1 || pgrep -x ib_send_bw >/dev/null 2>&1; then
+	echo "refusing to reload mlx4_ib while perftest is running" >&2
+	exit 1
+fi
+
+echo "reloading mlx4_ib after SR-IOV/link activation"
+modprobe -r mlx4_ib
+modprobe mlx4_ib
+
+echo "waiting for RDMA links after mlx4_ib reload"
+wait_links
+
+echo "settling ${SETTLE_SECS}s before RDMA consumers"
+sleep "$SETTLE_SECS"
+RDMAHELPER
+
+cat >/etc/systemd/system/cx3pro-rdma-postboot.service <<EOF_SERVICE
+[Unit]
+Description=Settle CX3 Pro RDMA after SR-IOV boot
+After=cx3pro-sriov-vfs.service network-online.target pve-guests.service
+Wants=network-online.target pve-guests.service
+
+[Service]
+Type=oneshot
+Environment=PF=${PF}
+Environment=NUM_VFS=${NUM_VFS}
+Environment=START_DELAY_SECS=25
+ExecStart=/usr/local/sbin/cx3pro-rdma-postboot.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF_SERVICE
+
 run systemctl daemon-reload
 run systemctl enable cx3pro-sriov-vfs.service
+run systemctl enable cx3pro-rdma-postboot.service
 ensure_initramfs_modules
 run update-initramfs -u
 

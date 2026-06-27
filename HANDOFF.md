@@ -446,3 +446,47 @@ behavior, but it replaces more of the RDMA stack and is less likely to survive
 Proxmox kernel updates cleanly. The inbox override path gains the needed
 ConnectX-3 Pro SR-IOV RoCEv2 behavior while keeping Proxmox's RDMA stack and
 kernel packaging model intact.
+
+## Post-reboot SR-IOV/RDMA Ordering Fix, 2026-06-27
+
+A real fresh-boot failure was reproduced after stale perftest listeners were
+eliminated. `port-validation --stage post-reboot` passed module/preflight
+checks but failed VF0 RDMA-CM traffic with `Bad wc status 12` /
+`Unexpected CM event ... 7`.
+
+The root cause is boot ordering, not a failed source patch. PF and host-owned
+VF RDMA links can report `ACTIVE` before RoCEv2 traffic is actually reliable.
+Traffic becomes reliable after `mlx4_ib` is reloaded once SR-IOV, VF policy,
+link activation, VM passthrough VF reset, and guest probe activity have settled.
+
+`sriov_setup` now installs `cx3pro-rdma-postboot.service` and
+`/usr/local/sbin/cx3pro-rdma-postboot.sh`. The unit runs after
+`cx3pro-sriov-vfs.service`, `network-online.target`, and `pve-guests.service`;
+waits 25 seconds for guest VF reset/probe activity; brings the PF and
+host-owned VF netdevs administratively up; waits for RDMA PF/VF links; reloads
+only `mlx4_ib`; waits again; then settles for 20 seconds.
+
+The reload did not disturb VM 100's passthrough binding. During validation,
+VF11 remained bound to `vfio-pci` while host-owned VF0-VF10 were available to
+`mlx4_ib`.
+
+`port-validation` now waits for the PF and host-owned VF RDMA links to become
+`ACTIVE` and then settles before starting RDMA-CM traffic.
+
+Automated clean-boot validation passed on pvs3:
+
+- Boot ID: `c685c66f-4eeb-4178-a17f-98043460b7b1`
+- Kernel: `7.0.2-6-pve`
+- Boot time: `2026-06-27 15:22:08`
+- Log: `/root/CX3Pro-inbox-driver-patch/logs/validation/post-reboot-20260627-152336.log`
+- Command shape:
+  `CLIENT_SSH=root@192.168.1.50 CLIENT_DEV=rocep23s0 NUM_VFS=12 RUN_BUILD=0 RUN_NVMET_STATUS=0 ./port-validation --stage post-reboot`
+- Result: preflight, exact Proxmox ref apply-check, runtime verifier, RDMA link
+  readiness, VF map, and RDMA-CM traffic passed.
+- VF0-VF10 RDMA-CM throughput: `49.24-50.53 Gbit/sec`.
+- VF11 skipped because it is assigned to `vfio-pci`.
+
+Next gate before calling the port upgrade-safe: run the Proxmox package upgrade
+workflow from the pre-upgrade ZFS snapshot, rebuild/install the override for
+the upgraded kernel, reboot, then run `port-validation --stage post-upgrade`
+with RDMA-CM enabled.
