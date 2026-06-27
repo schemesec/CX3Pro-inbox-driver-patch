@@ -191,6 +191,16 @@ Previously observed and fixed:
   across a reboot or upgrade until `port-validation --stage post-reboot` and
   `port-validation --stage post-upgrade`, respectively, pass with the
   cross-host VF RDMA-CM traffic test enabled.
+- Post-reboot issue follow-up: the apparent `Bad wc status 12` regression was
+  reproduced on both PF and VF RoCEv2 while stale `ib_write_bw` listeners were
+  present from aborted diagnostics. RoCE v1 over the same VLAN20 PF GIDs passed,
+  local RoCEv2 on each host passed, and cleaning exact stale perftest processes
+  restored wire RoCEv2. A clean PF RoCEv2 RDMA-CM run passed at `50.56
+  Gbit/sec`, then `CLIENT_SSH=root@192.168.1.50 CLIENT_DEV=rocep23s0
+  NUM_VFS=12 ./test_vf_rdmacm` passed for all 11 host-owned VFs and skipped
+  VF11 assigned to `vfio-pci`. Results were `49.63-50.67 Gbit/sec`.
+  `test_vf_rdmacm` now refuses pre-existing `ib_write_bw`/`ib_send_bw`
+  processes by default and traps interrupts to clean its active listener.
 - `preflight-upgrade.sh` now prints the exact validated Proxmox packaging ref
   for kernel `7.0.2-6-pve`:
   `87f22e55de30d73b83722b86790394564036b33c`.

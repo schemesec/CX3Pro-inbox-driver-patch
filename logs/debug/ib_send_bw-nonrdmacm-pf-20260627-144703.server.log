@@ -1,0 +1,27 @@
+ WARNING: BW peak won't be measured in this run.
+
+************************************
+* Waiting for client to connect... *
+************************************
+---------------------------------------------------------------------------------------
+                    Send BW Test
+ Dual-port       : OFF		Device         : rocep23s0
+ Number of qps   : 1		Transport type : IB
+ Connection type : RC		Using SRQ      : OFF
+ PCIe relax order: ON		Lock-free      : OFF
+ ibv_wr* API     : OFF		Using DDP      : OFF
+ RX depth        : 512
+ CQ Moderation   : 100
+ Mtu             : 2048[B]
+ Link type       : Ethernet
+ GID index       : 5
+ Max inline data : 0[B]
+ rdma_cm QPs	 : OFF
+ Data ex. method : Ethernet
+---------------------------------------------------------------------------------------
+ local address: LID 0000 QPN 0x0bd3 PSN 0x6b26c7
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:56
+ remote address: LID 0000 QPN 0x03ac PSN 0xe6005b
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:50
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]

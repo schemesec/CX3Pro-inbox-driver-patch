@@ -1,30 +1,28 @@
+ethernet_read_keys: Couldn't read remote address
+ Unable to read to socket/rdma_cm
+ Failed to exchange data between server and clients
 
 ************************************
 * Waiting for client to connect... *
 ************************************
 ---------------------------------------------------------------------------------------
                     RDMA_Write BW Test
- Dual-port       : OFF		Device         : mlx4_10
+ Dual-port       : OFF		Device         : rocep23s0
  Number of qps   : 1		Transport type : IB
  Connection type : RC		Using SRQ      : OFF
  PCIe relax order: ON		Lock-free      : OFF
  ibv_wr* API     : OFF		Using DDP      : OFF
- CQ Moderation   : 1
+ CQ Moderation   : 100
  Mtu             : 2048[B]
  Link type       : Ethernet
- GID index       : 1
+ GID index       : 3
  Max inline data : 0[B]
- rdma_cm QPs	 : ON
- Data ex. method : rdma_cm
+ rdma_cm QPs	 : OFF
+ Data ex. method : Ethernet
 ---------------------------------------------------------------------------------------
- Waiting for client rdma_cm QP to connect
- Please run the same command with the IB/RoCE interface IP
----------------------------------------------------------------------------------------
- local address: LID 0000 QPN 0x0c2b PSN 0x2135e0
- GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:170
- remote address: LID 0000 QPN 0x040a PSN 0xa65a40
- GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:50
+ local address: LID 0000 QPN 0x0bed PSN 0x7d6a7d RKey 0x30011101 VAddr 0x00604316881000
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:10:56
+ remote address: LID 0000 QPN 0x03db PSN 0xd37355 RKey 0x1001016c VAddr 0x005a4dc29e7000
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:10:50
 ---------------------------------------------------------------------------------------
  #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
- 65536      5000             50.03              50.02  		     0.095400
----------------------------------------------------------------------------------------

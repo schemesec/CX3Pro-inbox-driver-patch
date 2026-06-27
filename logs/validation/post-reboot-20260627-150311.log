@@ -1,0 +1,656 @@
+
+=== host ===
+pvs3
+stage=post-reboot
+kernel=7.0.2-6-pve
+boot_id=ca56e017-9e36-428d-b115-10a6a059e174
+boot_time=2026-06-27 13:42:51
+journal_since=2026-06-27 13:42:51
+
+=== port update check ===
++ env RUN_BUILD=0 RUN_VERIFY=1 RUN_NVMET_STATUS=0 JOURNAL_SINCE=2026-06-27 13:42:51 NUM_VFS=12 ./port-update-check
+
+=== preflight ===
+
+=== host ===
+pvs3
+kernel=7.0.2-6-pve
+install_dir=/lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2
+pve_kernel_ref=87f22e55de30d73b83722b86790394564036b33c
+
+=== kernel packages ===
+proxmox-kernel-7.0.2-6-pve:
+  Installed: (none)
+  Candidate: 7.0.2-6
+  Version table:
+     7.0.2-6 500
+        500 http://download.proxmox.com/debian/pve trixie/pve-no-subscription amd64 Packages
+PASS: proxmox-headers-7.0.2-6-pve 7.0.2-6
+pve-kernel-7.0.2-6-pve:
+  Installed: (none)
+  Candidate: (none)
+  Version table:
+pve-headers-7.0.2-6-pve:
+  Installed: (none)
+  Candidate: (none)
+  Version table:
+
+=== build inputs ===
+PASS: /boot/config-7.0.2-6-pve exists
+PASS: /lib/modules/7.0.2-6-pve/build/Makefile exists
+PASS: /lib/modules/7.0.2-6-pve/build/Module.symvers exists
+PASS: patches/kernel/0066-mlx4-preserve-rocev2-gid-type-for-sriov-vfs.patch exists
+
+=== module override resolution ===
+mlx4_core -> /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2/mlx4_core.ko
+PASS: mlx4_core resolves to patch override
+mlx4_en -> /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2/mlx4_en.ko
+PASS: mlx4_en resolves to patch override
+mlx4_ib -> /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2/mlx4_ib.ko
+PASS: mlx4_ib resolves to patch override
+rdma_cm -> /lib/modules/7.0.2-6-pve/kernel/drivers/infiniband/core/rdma_cm.ko
+PASS: rdma_cm remains stock inbox
+nvme_rdma -> /lib/modules/7.0.2-6-pve/kernel/drivers/nvme/host/nvme-rdma.ko
+PASS: nvme_rdma remains stock inbox
+nvmet_rdma -> /lib/modules/7.0.2-6-pve/kernel/drivers/nvme/target/nvmet-rdma.ko
+PASS: nvmet_rdma remains stock inbox
+
+=== loaded module state ===
+mlx4_core loaded from: /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2/mlx4_core.ko
+mlx4_en loaded from: /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2/mlx4_en.ko
+mlx4_ib loaded from: /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2/mlx4_ib.ko
+
+=== recommended next commands ===
+PVE_KERNEL_REF=87f22e55de30d73b83722b86790394564036b33c ./install-pve7.sh --apply-check-only --no-apt
+PVE_KERNEL_REF=87f22e55de30d73b83722b86790394564036b33c ./install-pve7.sh --build-only --no-apt
+PVE_KERNEL_REF=87f22e55de30d73b83722b86790394564036b33c ./install-pve7.sh --no-apt
+reboot
+PF=enp23s0 NUM_VFS=12 VF_VLAN=20 VLAN10_IP=192.168.10.56/24 VLAN20_IP=192.168.20.56/24 ./verify-pve7.sh
+
+=== summary ===
+warnings=0 failures=0
+
+=== resolve pve-kernel ref ===
+kernel=7.0.2-6-pve
+pve_kernel_ref=87f22e55de30d73b83722b86790394564036b33c
+subject=update ABI file for 7.0.2-6-pve (amd64)
+ubuntu_kernel_ref=69bb061d6b71ee9b43e6584cc16d2a8853e81fe6
+zfsonlinux_ref=069198f9d5ca7876a4af06da2c42f848f0d0552e
+
+Use:
+  PVE_KERNEL_REF=87f22e55de30d73b83722b86790394564036b33c ./install-pve7.sh --apply-check-only --no-apt
+  PVE_KERNEL_REF=87f22e55de30d73b83722b86790394564036b33c ./install-pve7.sh --build-only --no-apt
+
+=== apply check ===
+=== CX3 Pro inbox RoCEv2 VF patch installer ===
+repo=/root/CX3Pro-inbox-driver-patch
+kernel=7.0.2-6-pve
+pve_kernel_ref=87f22e55de30d73b83722b86790394564036b33c
+jobs=12
+build_root=/root/cx3pro-inbox-build
+install_dir=/lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2
+tested_kernels=7.0.2-2-pve 7.0.2-6-pve
+log=/root/CX3Pro-inbox-driver-patch/logs/install-20260627-150312.log
+
+using known validated pve-kernel ref for 7.0.2-6-pve
++ mkdir -p /root/cx3pro-inbox-build
++ git -C /root/cx3pro-inbox-build/pve-kernel fetch --depth 1 origin
++ git -C /root/cx3pro-inbox-build/pve-kernel reset --hard FETCH_HEAD
+HEAD is now at f5f9a7c make: fix deriving build-host architecture
++ git -C /root/cx3pro-inbox-build/pve-kernel fetch --depth 1 origin 87f22e55de30d73b83722b86790394564036b33c
+From https://github.com/proxmox/pve-kernel
+ * branch            87f22e55de30d73b83722b86790394564036b33c -> FETCH_HEAD
++ git -C /root/cx3pro-inbox-build/pve-kernel reset --hard FETCH_HEAD
+HEAD is now at 87f22e5 update ABI file for 7.0.2-6-pve (amd64)
++ git -C /root/cx3pro-inbox-build/pve-kernel submodule set-url submodules/ubuntu-kernel https://git.proxmox.com/git/mirror_ubuntu-kernels.git
+Synchronizing submodule url for 'submodules/ubuntu-kernel'
++ git -C /root/cx3pro-inbox-build/pve-kernel submodule set-url submodules/zfsonlinux https://git.proxmox.com/git/zfsonlinux.git
++ git -C /root/cx3pro-inbox-build/pve-kernel submodule update --init submodules/ubuntu-kernel
++ cp /root/CX3Pro-inbox-driver-patch/patches/kernel/0066-mlx4-preserve-rocev2-gid-type-for-sriov-vfs.patch /root/cx3pro-inbox-build/pve-kernel/patches/kernel/
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel reset --hard HEAD
+HEAD is now at 69bb061d6b71 UBUNTU: Ubuntu-7.0.0-18.18
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel clean -fdx
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel apply --check /root/CX3Pro-inbox-driver-patch/patches/kernel/0066-mlx4-preserve-rocev2-gid-type-for-sriov-vfs.patch
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel apply /root/CX3Pro-inbox-driver-patch/patches/kernel/0066-mlx4-preserve-rocev2-gid-type-for-sriov-vfs.patch
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel diff --check
+apply-check-only complete
+patch applied cleanly to source version 7.0.2
+log=/root/CX3Pro-inbox-driver-patch/logs/install-20260627-150312.log
+
+=== build only ===
+skipped because RUN_BUILD=0
+
+=== runtime verify ===
+
+=== host ===
+pvs3
+7.0.2-6-pve
+2026-06-27 13:42:51
+
+=== commands ===
+
+=== proxmox services ===
+PASS: pveproxy active
+PASS: pvedaemon active
+PASS: pvestatd active
+PASS: pve-cluster active
+PASS: pve-firewall active
+
+=== module resolution ===
+PASS: mlx4_core resolves to /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2
+PASS: mlx4_en resolves to /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2
+PASS: mlx4_ib resolves to /lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2
+
+=== module parameters ===
+PASS: mlx4_core enable_mfunc_roce_v2=Y
+
+=== PF RoCEv2 GIDs ===
+PASS: enp23s0 has a nonzero RoCE v2 GID
+PASS: enp23s0.10 has a nonzero RoCE v2 GID
+PASS: enp23s0.20 has a nonzero RoCE v2 GID
+
+=== firmware ===
+PASS: rocep23s0 firmware matches 2.42.5x
+
+=== RDMA devices ===
+    device          	   node GUID
+    ------          	----------------
+    rocep23s0       	ec0d9a03000ad090
+    mlx4_0          	001405007a223223
+    mlx4_1          	00140500da4ce293
+    mlx4_2          	00140500dd43a76f
+    mlx4_3          	0014050028844815
+    mlx4_4          	00140500ce74cb37
+    mlx4_5          	0014050046b9abd5
+    mlx4_6          	0014050002adab29
+    mlx4_7          	00140500771a4233
+    mlx4_8          	00140500791b338a
+    mlx4_9          	0014050077864de0
+    mlx4_10         	0014050032ff9c1e
+link rocep23s0/1 state ACTIVE physical_state LINK_UP netdev enp23s0 
+link rocep23s0/2 state DOWN physical_state DISABLED netdev enp23s0d1 
+link mlx4_0/1 state ACTIVE physical_state LINK_UP netdev enp23s0v0 
+link mlx4_1/1 state ACTIVE physical_state LINK_UP netdev enp23s0v1 
+link mlx4_2/1 state ACTIVE physical_state LINK_UP netdev enp23s0v2 
+link mlx4_3/1 state ACTIVE physical_state LINK_UP netdev enp23s0v3 
+link mlx4_4/1 state ACTIVE physical_state LINK_UP netdev enp23s0v4 
+link mlx4_5/1 state ACTIVE physical_state LINK_UP netdev enp23s0v5 
+link mlx4_6/1 state ACTIVE physical_state LINK_UP netdev enp23s0v6 
+link mlx4_7/1 state ACTIVE physical_state LINK_UP netdev enp23s0v7 
+link mlx4_8/1 state ACTIVE physical_state LINK_UP netdev enp23s0v8 
+link mlx4_9/1 state ACTIVE physical_state LINK_UP netdev enp23s0v9 
+link mlx4_10/1 state ACTIVE physical_state LINK_UP netdev enp23s0v10 
+PASS: PF RDMA link is ACTIVE
+
+=== SR-IOV service ===
+PASS: cx3pro-sriov-vfs.service active
+
+=== SR-IOV VFs ===
+PASS: PF netdev present: enp23s0
+3: enp23s0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9000 qdisc mq state UP mode DEFAULT group default qlen 1000
+    link/ether ec:0d:9a:0a:d0:90 brd ff:ff:ff:ff:ff:ff promiscuity 0 allmulti 0 minmtu 68 maxmtu 9900 addrgenmode eui64 numtxqueues 256 numrxqueues 128 gso_max_size 65536 gso_max_segs 65535 tso_max_size 524280 tso_max_segs 65535 gro_max_size 65536 gso_ipv4_max_size 65536 gro_ipv4_max_size 65536 portid ec0d9a03000ad090 parentbus pci parentdev 0000:17:00.0 
+    vf 0     link/ether 02:9a:0a:d0:90:00 brd ff:ff:ff:ff:ff:ff, vlan 20, qos 3, spoof checking on, link-state auto
+    vf 1     link/ether 02:9a:0a:d0:90:01 brd ff:ff:ff:ff:ff:ff, vlan 20, qos 3, spoof checking on, link-state auto
+    vf 2     link/ether 02:9a:0a:d0:90:02 brd ff:ff:ff:ff:ff:ff, vlan 20, qos 3, spoof checking on, link-state auto
+    vf 3     link/ether 02:9a:0a:d0:90:03 brd ff:ff:ff:ff:ff:ff, vlan 20, qos 3, spoof checking on, link-state auto
+    vf 4     link/ether 02:9a:0a:d0:90:04 brd ff:ff:ff:ff:ff:ff, vlan 20, qos 3, spoof checking on, link-state auto
+    vf 5     link/ether 02:9a:0a:d0:90:05 brd ff:ff:ff:ff:ff:ff, vlan 20, qos 3, spoof checking on, link-state auto
+    vf 6     link/ether 02:9a:0a:d0:90:06 brd ff:ff:ff:ff:ff:ff, vlan 20, qos 3, spoof checking on, link-state auto
+    vf 7     link/ether 02:9a:0a:d0:90:07 brd ff:ff:ff:ff:ff:ff, vlan 20, qos 3, spoof checking on, link-state auto
+    vf 8     link/ether 02:9a:0a:d0:90:08 brd ff:ff:ff:ff:ff:ff, vlan 20, qos 3, spoof checking on, link-state auto
+    vf 9     link/ether 02:9a:0a:d0:90:09 brd ff:ff:ff:ff:ff:ff, vlan 20, qos 3, spoof checking on, link-state auto
+    vf 10     link/ether 02:9a:0a:d0:90:0a brd ff:ff:ff:ff:ff:ff, vlan 20, qos 3, spoof checking on, link-state auto
+    vf 11     link/ether 02:9a:0a:d0:90:0b brd ff:ff:ff:ff:ff:ff, vlan 20, qos 3, spoof checking on, link-state auto
+    altname enxec0d9a0ad090
+PASS: vf 0 is assigned VLAN 20
+PASS: vf 0 is assigned RoCE PCP 3
+PASS: vf 0 PF policy MAC is stable: 02:9a:0a:d0:90:00
+PASS: enp23s0v0 MAC is stable
+PASS: enp23s0v0 has a nonzero RoCE v2 GID
+PASS: vf 1 is assigned VLAN 20
+PASS: vf 1 is assigned RoCE PCP 3
+PASS: vf 1 PF policy MAC is stable: 02:9a:0a:d0:90:01
+PASS: enp23s0v1 MAC is stable
+PASS: enp23s0v1 has a nonzero RoCE v2 GID
+PASS: vf 2 is assigned VLAN 20
+PASS: vf 2 is assigned RoCE PCP 3
+PASS: vf 2 PF policy MAC is stable: 02:9a:0a:d0:90:02
+PASS: enp23s0v2 MAC is stable
+PASS: enp23s0v2 has a nonzero RoCE v2 GID
+PASS: vf 3 is assigned VLAN 20
+PASS: vf 3 is assigned RoCE PCP 3
+PASS: vf 3 PF policy MAC is stable: 02:9a:0a:d0:90:03
+PASS: enp23s0v3 MAC is stable
+PASS: enp23s0v3 has a nonzero RoCE v2 GID
+PASS: vf 4 is assigned VLAN 20
+PASS: vf 4 is assigned RoCE PCP 3
+PASS: vf 4 PF policy MAC is stable: 02:9a:0a:d0:90:04
+PASS: enp23s0v4 MAC is stable
+PASS: enp23s0v4 has a nonzero RoCE v2 GID
+PASS: vf 5 is assigned VLAN 20
+PASS: vf 5 is assigned RoCE PCP 3
+PASS: vf 5 PF policy MAC is stable: 02:9a:0a:d0:90:05
+PASS: enp23s0v5 MAC is stable
+PASS: enp23s0v5 has a nonzero RoCE v2 GID
+PASS: vf 6 is assigned VLAN 20
+PASS: vf 6 is assigned RoCE PCP 3
+PASS: vf 6 PF policy MAC is stable: 02:9a:0a:d0:90:06
+PASS: enp23s0v6 MAC is stable
+PASS: enp23s0v6 has a nonzero RoCE v2 GID
+PASS: vf 7 is assigned VLAN 20
+PASS: vf 7 is assigned RoCE PCP 3
+PASS: vf 7 PF policy MAC is stable: 02:9a:0a:d0:90:07
+PASS: enp23s0v7 MAC is stable
+PASS: enp23s0v7 has a nonzero RoCE v2 GID
+PASS: vf 8 is assigned VLAN 20
+PASS: vf 8 is assigned RoCE PCP 3
+PASS: vf 8 PF policy MAC is stable: 02:9a:0a:d0:90:08
+PASS: enp23s0v8 MAC is stable
+PASS: enp23s0v8 has a nonzero RoCE v2 GID
+PASS: vf 9 is assigned VLAN 20
+PASS: vf 9 is assigned RoCE PCP 3
+PASS: vf 9 PF policy MAC is stable: 02:9a:0a:d0:90:09
+PASS: enp23s0v9 MAC is stable
+PASS: enp23s0v9 has a nonzero RoCE v2 GID
+PASS: vf 10 is assigned VLAN 20
+PASS: vf 10 is assigned RoCE PCP 3
+PASS: vf 10 PF policy MAC is stable: 02:9a:0a:d0:90:0a
+PASS: enp23s0v10 MAC is stable
+PASS: enp23s0v10 has a nonzero RoCE v2 GID
+PASS: vf 11 is assigned VLAN 20
+PASS: vf 11 is assigned RoCE PCP 3
+PASS: vf 11 PF policy MAC is stable: 02:9a:0a:d0:90:0b
+PASS: vf 11 0000:17:01.4 is assigned to vfio-pci passthrough
+PASS: 12 VFs accounted for: 11 host-owned, 1 passthrough
+
+=== RoCE priority flow control ===
+PASS: enp23s0 PFC is enabled for RoCE PCP 3
+
+=== PF VLAN interfaces ===
+enp23s0          UP             fe80::ee0d:9aff:fe0a:d090/64 
+enp23s0.10@enp23s0 UP             192.168.10.56/24 
+enp23s0.20@enp23s0 UP             192.168.20.56/24 
+PASS: enp23s0 MTU is 9000
+PASS: enp23s0.10 MTU is 9000
+PASS: enp23s0.20 MTU is 9000
+PASS: enp23s0.10 exists
+PASS: enp23s0.10 maps RoCE egress to PCP 3
+PASS: enp23s0.20 exists
+PASS: enp23s0.20 maps RoCE egress to PCP 3
+PASS: enp23s0.10 has 192.168.10.56/24
+PASS: enp23s0.20 has 192.168.20.56/24
+
+=== kernel warning scan ===
+PASS: kernel warning scan has no matching entries since 2026-06-27 13:42:51
+
+=== summary ===
+verify-pve7: PASS
+
+=== summary ===
+port-update-check: PASS
+
+=== vf rdma-cm map ===
++ env NUM_VFS=12 ./test_vf_rdmacm --list
+MAP vf0 netdev=enp23s0v0 ip=192.168.20.160 dev=mlx4_0 gid_index=1
+MAP vf1 netdev=enp23s0v1 ip=192.168.20.161 dev=mlx4_1 gid_index=1
+MAP vf2 netdev=enp23s0v2 ip=192.168.20.162 dev=mlx4_2 gid_index=1
+MAP vf3 netdev=enp23s0v3 ip=192.168.20.163 dev=mlx4_3 gid_index=1
+MAP vf4 netdev=enp23s0v4 ip=192.168.20.164 dev=mlx4_4 gid_index=1
+MAP vf5 netdev=enp23s0v5 ip=192.168.20.165 dev=mlx4_5 gid_index=1
+MAP vf6 netdev=enp23s0v6 ip=192.168.20.166 dev=mlx4_6 gid_index=1
+MAP vf7 netdev=enp23s0v7 ip=192.168.20.167 dev=mlx4_7 gid_index=1
+MAP vf8 netdev=enp23s0v8 ip=192.168.20.168 dev=mlx4_8 gid_index=1
+MAP vf9 netdev=enp23s0v9 ip=192.168.20.169 dev=mlx4_9 gid_index=1
+MAP vf10 netdev=enp23s0v10 ip=192.168.20.170 dev=mlx4_10 gid_index=1
+SKIP vf11: passthrough vfio-pci
+test_vf_rdmacm: MAP OK (11 VFs found)
+
+=== vf rdma-cm traffic ===
++ env CLIENT_SSH=root@192.168.1.50 CLIENT_DEV=rocep23s0 NUM_VFS=12 ./test_vf_rdmacm
+TEST_START vf0 ip=192.168.20.160 dev=mlx4_0 gid_index=1
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Dual-port       : OFF		Device         : rocep23s0
+ Number of qps   : 1		Transport type : IB
+ Connection type : RC		Using SRQ      : OFF
+ PCIe relax order: ON		Lock-free      : OFF
+ ibv_wr* API     : OFF		Using DDP      : OFF
+ TX depth        : 128
+ CQ Moderation   : 1
+ Mtu             : 2048[B]
+ Link type       : Ethernet
+ GID index       : 5
+ Max inline data : 0[B]
+ rdma_cm QPs	 : ON
+ Data ex. method : rdma_cm
+---------------------------------------------------------------------------------------
+ local address: LID 0000 QPN 0x03f6 PSN 0xab807c
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:50
+ remote address: LID 0000 QPN 0x0c17 PSN 0x6f33c4
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:160
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.66              50.63  		     0.096573
+---------------------------------------------------------------------------------------
+TEST_DONE vf0 server=0 client=0
+ Link type       : Ethernet
+ GID index       : 1
+ rdma_cm QPs	 : ON
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.66              50.63  		     0.096573
+TEST_START vf1 ip=192.168.20.161 dev=mlx4_1 gid_index=1
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Dual-port       : OFF		Device         : rocep23s0
+ Number of qps   : 1		Transport type : IB
+ Connection type : RC		Using SRQ      : OFF
+ PCIe relax order: ON		Lock-free      : OFF
+ ibv_wr* API     : OFF		Using DDP      : OFF
+ TX depth        : 128
+ CQ Moderation   : 1
+ Mtu             : 2048[B]
+ Link type       : Ethernet
+ GID index       : 5
+ Max inline data : 0[B]
+ rdma_cm QPs	 : ON
+ Data ex. method : rdma_cm
+---------------------------------------------------------------------------------------
+ local address: LID 0000 QPN 0x03f8 PSN 0x20b86c
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:50
+ remote address: LID 0000 QPN 0x0c19 PSN 0x9da828
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:161
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.90              50.89  		     0.097073
+---------------------------------------------------------------------------------------
+TEST_DONE vf1 server=0 client=0
+ Link type       : Ethernet
+ GID index       : 1
+ rdma_cm QPs	 : ON
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.90              50.89  		     0.097073
+TEST_START vf2 ip=192.168.20.162 dev=mlx4_2 gid_index=1
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Dual-port       : OFF		Device         : rocep23s0
+ Number of qps   : 1		Transport type : IB
+ Connection type : RC		Using SRQ      : OFF
+ PCIe relax order: ON		Lock-free      : OFF
+ ibv_wr* API     : OFF		Using DDP      : OFF
+ TX depth        : 128
+ CQ Moderation   : 1
+ Mtu             : 2048[B]
+ Link type       : Ethernet
+ GID index       : 5
+ Max inline data : 0[B]
+ rdma_cm QPs	 : ON
+ Data ex. method : rdma_cm
+---------------------------------------------------------------------------------------
+ local address: LID 0000 QPN 0x03fa PSN 0xc83e17
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:50
+ remote address: LID 0000 QPN 0x0c1b PSN 0x2eb1ef
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:162
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.27              49.62  		     0.094652
+---------------------------------------------------------------------------------------
+TEST_DONE vf2 server=0 client=0
+ Link type       : Ethernet
+ GID index       : 1
+ rdma_cm QPs	 : ON
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.27              49.62  		     0.094652
+TEST_START vf3 ip=192.168.20.163 dev=mlx4_3 gid_index=1
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Dual-port       : OFF		Device         : rocep23s0
+ Number of qps   : 1		Transport type : IB
+ Connection type : RC		Using SRQ      : OFF
+ PCIe relax order: ON		Lock-free      : OFF
+ ibv_wr* API     : OFF		Using DDP      : OFF
+ TX depth        : 128
+ CQ Moderation   : 1
+ Mtu             : 2048[B]
+ Link type       : Ethernet
+ GID index       : 5
+ Max inline data : 0[B]
+ rdma_cm QPs	 : ON
+ Data ex. method : rdma_cm
+---------------------------------------------------------------------------------------
+ local address: LID 0000 QPN 0x03fc PSN 0x28c0a4
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:50
+ remote address: LID 0000 QPN 0x0c1d PSN 0xe3e372
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:163
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.49              49.94  		     0.095244
+---------------------------------------------------------------------------------------
+TEST_DONE vf3 server=0 client=0
+ Link type       : Ethernet
+ GID index       : 1
+ rdma_cm QPs	 : ON
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.49              49.94  		     0.095244
+TEST_START vf4 ip=192.168.20.164 dev=mlx4_4 gid_index=1
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Dual-port       : OFF		Device         : rocep23s0
+ Number of qps   : 1		Transport type : IB
+ Connection type : RC		Using SRQ      : OFF
+ PCIe relax order: ON		Lock-free      : OFF
+ ibv_wr* API     : OFF		Using DDP      : OFF
+ TX depth        : 128
+ CQ Moderation   : 1
+ Mtu             : 2048[B]
+ Link type       : Ethernet
+ GID index       : 5
+ Max inline data : 0[B]
+ rdma_cm QPs	 : ON
+ Data ex. method : rdma_cm
+---------------------------------------------------------------------------------------
+ local address: LID 0000 QPN 0x03fe PSN 0x9cfa52
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:50
+ remote address: LID 0000 QPN 0x0c1f PSN 0x92c336
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:164
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.66              50.64  		     0.096585
+---------------------------------------------------------------------------------------
+TEST_DONE vf4 server=0 client=0
+ Link type       : Ethernet
+ GID index       : 1
+ rdma_cm QPs	 : ON
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.66              50.64  		     0.096585
+TEST_START vf5 ip=192.168.20.165 dev=mlx4_5 gid_index=1
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Dual-port       : OFF		Device         : rocep23s0
+ Number of qps   : 1		Transport type : IB
+ Connection type : RC		Using SRQ      : OFF
+ PCIe relax order: ON		Lock-free      : OFF
+ ibv_wr* API     : OFF		Using DDP      : OFF
+ TX depth        : 128
+ CQ Moderation   : 1
+ Mtu             : 2048[B]
+ Link type       : Ethernet
+ GID index       : 5
+ Max inline data : 0[B]
+ rdma_cm QPs	 : ON
+ Data ex. method : rdma_cm
+---------------------------------------------------------------------------------------
+ local address: LID 0000 QPN 0x0400 PSN 0x5e5384
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:50
+ remote address: LID 0000 QPN 0x0c21 PSN 0x418df0
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:165
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             49.50              49.49  		     0.094402
+---------------------------------------------------------------------------------------
+TEST_DONE vf5 server=0 client=0
+ Link type       : Ethernet
+ GID index       : 1
+ rdma_cm QPs	 : ON
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             49.50              49.49  		     0.094402
+TEST_START vf6 ip=192.168.20.166 dev=mlx4_6 gid_index=1
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Dual-port       : OFF		Device         : rocep23s0
+ Number of qps   : 1		Transport type : IB
+ Connection type : RC		Using SRQ      : OFF
+ PCIe relax order: ON		Lock-free      : OFF
+ ibv_wr* API     : OFF		Using DDP      : OFF
+ TX depth        : 128
+ CQ Moderation   : 1
+ Mtu             : 2048[B]
+ Link type       : Ethernet
+ GID index       : 5
+ Max inline data : 0[B]
+ rdma_cm QPs	 : ON
+ Data ex. method : rdma_cm
+---------------------------------------------------------------------------------------
+ local address: LID 0000 QPN 0x0402 PSN 0xb9dc75
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:50
+ remote address: LID 0000 QPN 0x0c23 PSN 0xc0d298
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:166
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.52              50.41  		     0.096150
+---------------------------------------------------------------------------------------
+TEST_DONE vf6 server=0 client=0
+ Link type       : Ethernet
+ GID index       : 1
+ rdma_cm QPs	 : ON
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.52              50.41  		     0.096150
+TEST_START vf7 ip=192.168.20.167 dev=mlx4_7 gid_index=1
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Dual-port       : OFF		Device         : rocep23s0
+ Number of qps   : 1		Transport type : IB
+ Connection type : RC		Using SRQ      : OFF
+ PCIe relax order: ON		Lock-free      : OFF
+ ibv_wr* API     : OFF		Using DDP      : OFF
+ TX depth        : 128
+ CQ Moderation   : 1
+ Mtu             : 2048[B]
+ Link type       : Ethernet
+ GID index       : 5
+ Max inline data : 0[B]
+ rdma_cm QPs	 : ON
+ Data ex. method : rdma_cm
+---------------------------------------------------------------------------------------
+ local address: LID 0000 QPN 0x0404 PSN 0xcbcfff
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:50
+ remote address: LID 0000 QPN 0x0c25 PSN 0x97ba48
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:167
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             49.66              49.66  		     0.094722
+---------------------------------------------------------------------------------------
+TEST_DONE vf7 server=0 client=0
+ Link type       : Ethernet
+ GID index       : 1
+ rdma_cm QPs	 : ON
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             49.66              49.66  		     0.094722
+TEST_START vf8 ip=192.168.20.168 dev=mlx4_8 gid_index=1
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Dual-port       : OFF		Device         : rocep23s0
+ Number of qps   : 1		Transport type : IB
+ Connection type : RC		Using SRQ      : OFF
+ PCIe relax order: ON		Lock-free      : OFF
+ ibv_wr* API     : OFF		Using DDP      : OFF
+ TX depth        : 128
+ CQ Moderation   : 1
+ Mtu             : 2048[B]
+ Link type       : Ethernet
+ GID index       : 5
+ Max inline data : 0[B]
+ rdma_cm QPs	 : ON
+ Data ex. method : rdma_cm
+---------------------------------------------------------------------------------------
+ local address: LID 0000 QPN 0x0406 PSN 0xd50e19
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:50
+ remote address: LID 0000 QPN 0x0c27 PSN 0x16fbb0
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:168
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.25              50.21  		     0.095774
+---------------------------------------------------------------------------------------
+TEST_DONE vf8 server=0 client=0
+ Link type       : Ethernet
+ GID index       : 1
+ rdma_cm QPs	 : ON
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.25              50.21  		     0.095774
+TEST_START vf9 ip=192.168.20.169 dev=mlx4_9 gid_index=1
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Dual-port       : OFF		Device         : rocep23s0
+ Number of qps   : 1		Transport type : IB
+ Connection type : RC		Using SRQ      : OFF
+ PCIe relax order: ON		Lock-free      : OFF
+ ibv_wr* API     : OFF		Using DDP      : OFF
+ TX depth        : 128
+ CQ Moderation   : 1
+ Mtu             : 2048[B]
+ Link type       : Ethernet
+ GID index       : 5
+ Max inline data : 0[B]
+ rdma_cm QPs	 : ON
+ Data ex. method : rdma_cm
+---------------------------------------------------------------------------------------
+ local address: LID 0000 QPN 0x0408 PSN 0x4d9bfb
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:50
+ remote address: LID 0000 QPN 0x0c29 PSN 0x4d4bb9
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:169
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.66              50.65  		     0.096599
+---------------------------------------------------------------------------------------
+TEST_DONE vf9 server=0 client=0
+ Link type       : Ethernet
+ GID index       : 1
+ rdma_cm QPs	 : ON
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.66              50.65  		     0.096599
+TEST_START vf10 ip=192.168.20.170 dev=mlx4_10 gid_index=1
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Dual-port       : OFF		Device         : rocep23s0
+ Number of qps   : 1		Transport type : IB
+ Connection type : RC		Using SRQ      : OFF
+ PCIe relax order: ON		Lock-free      : OFF
+ ibv_wr* API     : OFF		Using DDP      : OFF
+ TX depth        : 128
+ CQ Moderation   : 1
+ Mtu             : 2048[B]
+ Link type       : Ethernet
+ GID index       : 5
+ Max inline data : 0[B]
+ rdma_cm QPs	 : ON
+ Data ex. method : rdma_cm
+---------------------------------------------------------------------------------------
+ local address: LID 0000 QPN 0x040a PSN 0xa65a40
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:50
+ remote address: LID 0000 QPN 0x0c2b PSN 0x2135e0
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:170
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.03              50.02  		     0.095400
+---------------------------------------------------------------------------------------
+TEST_DONE vf10 server=0 client=0
+ Link type       : Ethernet
+ GID index       : 1
+ rdma_cm QPs	 : ON
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             50.03              50.02  		     0.095400
+SKIP vf11: passthrough vfio-pci
+test_vf_rdmacm: PASS (11 VFs tested)
+
+=== summary ===
+port-validation post-reboot: PASS
+log=logs/validation/post-reboot-20260627-150311.log

@@ -384,6 +384,26 @@ However, cross-host VF RDMA-CM traffic is not currently working after reboot:
 Do not proceed to the Proxmox upgrade until this post-reboot data-plane
 regression is resolved or explicitly accepted.
 
+Update: this was resolved later on 2026-06-27. The failing PF/VF RoCEv2 tests
+were caused by stale `ib_write_bw` listeners left behind by aborted diagnostic
+commands, not by a persistent post-reboot driver regression. Evidence:
+
+- PF RoCEv1 over VLAN20 passed while RoCEv2 was failing, narrowing the symptom
+  to the tested RoCEv2/perftest path.
+- Local same-host RoCEv2 passed on both pvs1 and pvs3.
+- Exact stale pvs3 `ib_write_bw` processes were found and killed:
+  three VF0 listeners and one PF listener.
+- After cleanup, PF RoCEv2 RDMA-CM passed at `50.56 Gbit/sec`.
+- Full clean sweep passed:
+  `CLIENT_SSH=root@192.168.1.50 CLIENT_DEV=rocep23s0 NUM_VFS=12
+  ./test_vf_rdmacm`
+  tested VF0-VF10 at `49.63-50.67 Gbit/sec` and skipped VF11 because it is
+  assigned to `vfio-pci`.
+
+`test_vf_rdmacm` was hardened to refuse pre-existing `ib_write_bw`/`ib_send_bw`
+processes unless `ALLOW_STALE_PERFTEST=1` is explicitly set, and to clean up
+its active server process on exit/interrupt.
+
 ## Local Tree Status
 
 Expected local worktree changes after aligning with Proxmox `7.0.2-6`:
@@ -400,29 +420,22 @@ Expected local worktree changes after aligning with Proxmox `7.0.2-6`:
 ## Next Steps
 
 1. Keep the pvs3 module-override repository as the active implementation.
-2. Debug the post-reboot VF RDMA-CM data-plane failure before upgrading pvs3.
-   The control-plane checks pass, but VF traffic currently fails with
-   `Bad wc status 12`.
-3. Compare post-reboot VF/PF state against the earlier pre-reboot passing state:
-   RDMA GID table, source routing, PFC/DCB state, mlx4 counters, and kernel
-   logs around VF init and `denying Global Pause change for slave:*`.
-4. If the failure is caused by host-owned VF pause handling, patch the inbox
-   `mlx4_en` VF path so host VFs also avoid PF-owned global pause changes, then
-   rebuild and retest.
-5. Once post-reboot VF RDMA-CM passes again, proceed with the upgrade workflow:
+2. Treat stale perftest processes as a hard precondition failure before any PF
+   or VF RDMA-CM validation.
+3. Proceed with the upgrade workflow:
    - `./preflight-upgrade.sh`
    - resolve the exact new Proxmox packaging ref with `./find-pve-kernel-ref`
    - pinned `./install-pve7.sh --apply-check-only --no-apt`
    - pinned `./install-pve7.sh --build-only --no-apt`
    - install or rebuild override modules only after those checks pass.
-6. After reboot, run:
+4. After reboot, run:
    `CLIENT_SSH=root@192.168.1.50 CLIENT_DEV=rocep23s0 NUM_VFS=12
    ./port-validation --stage post-reboot`.
-7. After the Proxmox upgrade, rebuild/install if the kernel changed, reboot,
+5. After the Proxmox upgrade, rebuild/install if the kernel changed, reboot,
    then run:
    `CLIENT_SSH=root@192.168.1.50 CLIENT_DEV=rocep23s0 NUM_VFS=12
    ./port-validation --stage post-upgrade`.
-8. Keep `/home/scheme/workspace/mlx-research` as the OFED reference project,
+6. Keep `/home/scheme/workspace/mlx-research` as the OFED reference project,
    not the preferred deployment path.
 
 ## OFED Comparison

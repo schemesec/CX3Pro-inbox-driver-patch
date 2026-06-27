@@ -1,0 +1,28 @@
+ethernet_read_keys: Couldn't read remote address
+ Unable to read to socket/rdma_cm
+ Failed to exchange data between server and clients
+
+************************************
+* Waiting for client to connect... *
+************************************
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Dual-port       : OFF		Device         : rocep23s0
+ Number of qps   : 1		Transport type : IB
+ Connection type : RC		Using SRQ      : OFF
+ PCIe relax order: ON		Lock-free      : OFF
+ ibv_wr* API     : OFF		Using DDP      : OFF
+ CQ Moderation   : 100
+ Mtu             : 2048[B]
+ Link type       : Ethernet
+ GID index       : 5
+ Max inline data : 0[B]
+ rdma_cm QPs	 : OFF
+ Data ex. method : Ethernet
+---------------------------------------------------------------------------------------
+ local address: LID 0000 QPN 0x0bd4 PSN 0xeff3d7 RKey 0xa8011100 VAddr 0x005e24aa8ca000
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:56
+ remote address: LID 0000 QPN 0x03ad PSN 0xf69065 RKey 0x8801016b VAddr 0x0060341b974000
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:50
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
