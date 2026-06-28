@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TESTED_KERNELS="${TESTED_KERNELS:-7.0.2-2-pve 7.0.2-6-pve 7.0.12-1-pve}"
+TESTED_KERNELS="${TESTED_KERNELS:-}"
 KVER="${KVER:-$(uname -r)}"
 JOBS="${JOBS:-$(nproc)}"
 INSTALL_DIR="${INSTALL_DIR:-/lib/modules/${KVER}/updates/cx3pro-inbox-rocev2}"
@@ -103,6 +103,11 @@ LOG="${LOG_DIR}/install-${TS}.log"
 PVE_TREE="${BUILD_ROOT}/pve-kernel"
 KERNEL_TREE="${PVE_TREE}/submodules/ubuntu-kernel"
 PATCH_FILE="${REPO_ROOT}/patches/kernel/0066-mlx4-preserve-rocev2-gid-type-for-sriov-vfs.patch"
+SOURCE_CHECK="${REPO_ROOT}/check-mlx4-rocev2-source"
+
+# shellcheck source=lib/pve-kernel-refs.sh
+. "${REPO_ROOT}/lib/pve-kernel-refs.sh"
+TESTED_KERNELS="${TESTED_KERNELS:-$CX3PRO_TESTED_KERNELS}"
 
 log() {
 	printf '%s\n' "$*" | tee -a "$LOG"
@@ -136,29 +141,7 @@ kernel_localversion() {
 }
 
 kernel_is_tested() {
-	local tested
-
-	for tested in $TESTED_KERNELS; do
-		[ "$KVER" = "$tested" ] && return 0
-	done
-	return 1
-}
-
-known_pve_kernel_ref() {
-	case "$KVER" in
-	7.0.2-2-pve)
-		printf '%s\n' 59dd19a1c4f66f932d222eac91f9f1454f9b10cc
-		;;
-	7.0.2-6-pve)
-		printf '%s\n' 87f22e55de30d73b83722b86790394564036b33c
-		;;
-	7.0.12-1-pve)
-		printf '%s\n' b8d87f8e97fa979f50d88673bd5be41de93ed2f3
-		;;
-	*)
-		return 1
-		;;
-	esac
+	pve_kernel_is_tested "$KVER" "$TESTED_KERNELS"
 }
 
 ensure_build_deps() {
@@ -207,6 +190,34 @@ prepare_source() {
 	run git -C "$KERNEL_TREE" apply --check "$PATCH_FILE"
 	run git -C "$KERNEL_TREE" apply "$PATCH_FILE"
 	run git -C "$KERNEL_TREE" diff --check
+	if [ -x "$SOURCE_CHECK" ]; then
+		run "$SOURCE_CHECK" "$KERNEL_TREE"
+	else
+		log "warning: source semantic checker is not executable: ${SOURCE_CHECK}"
+	fi
+}
+
+check_target_build_inputs() {
+	local missing=0
+	local header_pkg="proxmox-headers-${KVER}"
+
+	if [ ! -f "/boot/config-${KVER}" ]; then
+		log "error: missing kernel config: /boot/config-${KVER}"
+		missing=1
+	fi
+	if [ ! -f "/lib/modules/${KVER}/build/Module.symvers" ]; then
+		log "error: missing kernel headers/symbols: /lib/modules/${KVER}/build/Module.symvers"
+		if apt-cache policy "$header_pkg" 2>/dev/null | awk '/Candidate:/ && $2 != "(none)" { found = 1 } END { exit found ? 0 : 1 }'; then
+			log "install the matching headers first:"
+			log "  apt-get install -y ${header_pkg}"
+		else
+			log "no candidate found for ${header_pkg}; check the Proxmox repository state"
+		fi
+		missing=1
+	fi
+	if [ "$missing" -ne 0 ]; then
+		exit 1
+	fi
 }
 
 build_modules() {
@@ -359,11 +370,11 @@ mkdir -p "$LOG_DIR"
 cd "$REPO_ROOT"
 
 if [ -z "$PVE_KERNEL_REF" ]; then
-	PVE_KERNEL_REF="$(known_pve_kernel_ref || true)"
+	PVE_KERNEL_REF="$(pve_kernel_ref_for "$KVER" || true)"
 fi
 AUTO_REF_SELECTED=0
-if [ -n "$PVE_KERNEL_REF" ] && known_pve_kernel_ref >/dev/null 2>&1 &&
-    [ "$PVE_KERNEL_REF" = "$(known_pve_kernel_ref)" ]; then
+if [ -n "$PVE_KERNEL_REF" ] && pve_kernel_ref_for "$KVER" >/dev/null 2>&1 &&
+    [ "$PVE_KERNEL_REF" = "$(pve_kernel_ref_for "$KVER")" ]; then
 	AUTO_REF_SELECTED=1
 fi
 
@@ -404,8 +415,7 @@ fi
 
 need_file "$PATCH_FILE"
 if [ "$APPLY_CHECK_ONLY" -eq 0 ]; then
-	need_file "/boot/config-${KVER}"
-	need_file "/lib/modules/${KVER}/build/Module.symvers"
+	check_target_build_inputs
 fi
 
 if [ "$NO_BUILD" -eq 0 ]; then

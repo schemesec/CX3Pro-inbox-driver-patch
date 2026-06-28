@@ -3,6 +3,30 @@
 This repo is experimental and was created with AI assistance for a specific
 homelab CX3 Pro setup. It is not a production driver source.
 
+## pvs3 current validated state
+
+- Host: `pvs3`
+- Kernel: `7.0.12-1-pve`
+- Proxmox: `pve-manager/9.2.3/d0fde103346cf89a`
+- Module install path: `/lib/modules/7.0.12-1-pve/updates/cx3pro-inbox-rocev2`
+- Exact Proxmox packaging ref:
+  `b8d87f8e97fa979f50d88673bd5be41de93ed2f3`
+- Proxmox-pinned Linux source:
+  `d873103e8ac3c51fbdb4be178bddb191af0f6a21`
+- Current validated rollback point:
+  `rpool@post-rollback-reupgrade-validated-20260628-041821`
+
+Current strict non-installing update readiness passed:
+
+```sh
+STRICT_PREFLIGHT=1 \
+EXPECT_PVE_KERNEL_REF=b8d87f8e97fa979f50d88673bd5be41de93ed2f3 \
+RUN_BUILD=0 RUN_NVMET_STATUS=0 ./port-update-check
+```
+
+Latest apply/source-check log:
+`/root/CX3Pro-inbox-driver-patch/logs/install-20260628-101157.log`.
+
 ## pvs3
 
 - Host: `pvs3`
@@ -403,3 +427,25 @@ Previously observed and fixed:
   `rpool@post-rollback-reupgrade-validated-20260628-041821`. Snapshot
   inventory:
   `/root/CX3Pro-inbox-driver-patch/logs/post-rollback-reupgrade-zfs-20260628-041821.txt`.
+
+## Update tooling hardening, 2026-06-28
+
+- Added `lib/pve-kernel-refs.sh` as the shared tested-kernel/ref map for
+  installer, preflight, rollback, and validation tooling.
+- Added `check-mlx4-rocev2-source` as a post-apply semantic source check for the
+  patched mlx4 RoCEv2/SR-IOV GID type plumbing.
+- Fixed `check-mlx4-rocev2-source` to handle Proxmox submodule `.git` files and
+  to discover the kernel source under a parent Proxmox packaging checkout.
+- Added `upgrade-lifecycle` as a guarded/dry-run lifecycle command logger.
+- Added `EXPECT_PVE_KERNEL_REF` and `STRICT_PREFLIGHT` to the update check path.
+- Latest strict non-installing update check passed with zero failures:
+
+  ```sh
+  STRICT_PREFLIGHT=1 \
+  EXPECT_PVE_KERNEL_REF=b8d87f8e97fa979f50d88673bd5be41de93ed2f3 \
+  RUN_BUILD=0 RUN_NVMET_STATUS=0 ./port-update-check
+  ```
+
+- Known residual notes: DKMS may skip side kernels when matching headers are not
+  installed; `/usr/sbin/grub-probe: error: unknown filesystem` has appeared
+  during grub generation but did not block successful boots.

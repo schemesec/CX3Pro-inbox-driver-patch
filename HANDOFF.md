@@ -17,6 +17,7 @@ kernel source mirror.
 - Local research tree: `/home/scheme/workspace/inbox-research`
 - Active pvs3 implementation: `/root/CX3Pro-inbox-driver-patch`
 - pvs3 current validated kernel: `7.0.12-1-pve`
+- pvs3 current validated Proxmox version: `pve-manager/9.2.3/d0fde103346cf89a`
 - Exact Proxmox packaging commit for pvs3: `b8d87f8e97fa979f50d88673bd5be41de93ed2f3`
 - Proxmox-pinned kernel source commit: `d873103e8ac3c51fbdb4be178bddb191af0f6a21`
 - Proxmox-pinned ZFS commit for `7.0.12-1`: `069198f9d5ca7876a4af06da2c42f848f0d0552e`
@@ -40,9 +41,9 @@ including `rdma_cm`, `nvme-rdma`, and `nvmet-rdma`. That is the preferred
 compatibility model for Proxmox updates because the override is narrow, easy to
 verify, and reversible without replacing the full RDMA stack.
 
-The pvs3 repository commit tested during this handoff was:
+The pvs3 repository commit tested during the rollback/re-upgrade handoff was:
 
-`f441dd5 Validate Proxmox 7.0.12 upgrade path`
+`c8194b8 Validate rollback and re-upgrade lifecycle`
 
 Current rollback points:
 
@@ -447,9 +448,11 @@ Expected local worktree changes after aligning with Proxmox `7.0.2-6`:
      `rpool@post-inbox-dist-upgrade-validated-20260628-035411`
 4. For the next Proxmox kernel/update candidate, run the update-readiness
    workflow before installing anything:
-   - `./preflight-upgrade.sh`
-   - resolve the exact new Proxmox packaging ref with `./find-pve-kernel-ref`
+   - `STRICT_PREFLIGHT=1 ./preflight-upgrade.sh --strict`
+   - resolve or assert the exact new Proxmox packaging ref with
+     `./find-pve-kernel-ref` and `EXPECT_PVE_KERNEL_REF`
    - pinned `./install-pve7.sh --apply-check-only --no-apt`
+   - semantic source check through `check-mlx4-rocev2-source`
    - pinned `./install-pve7.sh --build-only --no-apt`
    - confirm matching `proxmox-headers-<kernel>` are installed or available
 5. Install or rebuild override modules only after source apply-check,
@@ -651,3 +654,34 @@ Final health after rollback/re-upgrade:
   `/lib/modules/7.0.12-1-pve/updates/cx3pro-inbox-rocev2`
 - Boot kernels are unpinned; Proxmox boot tool auto-selects
   `6.17.13-13-pve`, `7.0.12-1-pve`, and `7.0.2-6-pve`.
+
+## Lifecycle tooling hardening, 2026-06-28
+
+After the rollback/re-upgrade pass, the update path was hardened so future
+kernel bumps are easier to repeat and less dependent on script-local state:
+
+- `lib/pve-kernel-refs.sh` centralizes tested kernels and exact Proxmox refs for
+  `7.0.2-2-pve`, `7.0.2-6-pve`, and `7.0.12-1-pve`.
+- `install-pve7.sh`, `preflight-upgrade.sh`, `rollback-pve7.sh`,
+  `port-update-check`, and `port-validation` now consume the shared ref map.
+- `install-pve7.sh` runs `check-mlx4-rocev2-source` after patch apply and
+  `diff --check`, and fails earlier when target headers/build inputs are
+  missing.
+- `check-mlx4-rocev2-source` accepts either the kernel source tree or a parent
+  Proxmox packaging checkout, handles submodule `.git` files, and verifies the
+  key mlx4 RoCEv2/SR-IOV GID type plumbing after patch application.
+- `port-update-check` supports `EXPECT_PVE_KERNEL_REF` and `STRICT_PREFLIGHT`.
+- `upgrade-lifecycle` logs and prints guarded reboot, rollback, and re-upgrade
+  command blocks. Dangerous actions remain dry-run unless explicitly enabled.
+
+Strict non-installing update readiness passed on `7.0.12-1-pve` after those
+changes:
+
+```sh
+STRICT_PREFLIGHT=1 \
+EXPECT_PVE_KERNEL_REF=b8d87f8e97fa979f50d88673bd5be41de93ed2f3 \
+RUN_BUILD=0 RUN_NVMET_STATUS=0 ./port-update-check
+```
+
+Result: `port-update-check: PASS`. Latest apply/source-check log:
+`/root/CX3Pro-inbox-driver-patch/logs/install-20260628-101157.log`.

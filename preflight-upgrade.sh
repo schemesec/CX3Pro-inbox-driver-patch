@@ -5,6 +5,10 @@ KVER="${KVER:-$(uname -r)}"
 INSTALL_DIR="${INSTALL_DIR:-/lib/modules/${KVER}/updates/cx3pro-inbox-rocev2}"
 PATCH_FILE="${PATCH_FILE:-patches/kernel/0066-mlx4-preserve-rocev2-gid-type-for-sriov-vfs.patch}"
 STRICT=0
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=lib/pve-kernel-refs.sh
+. "${REPO_ROOT}/lib/pve-kernel-refs.sh"
 
 usage() {
 	cat <<EOF
@@ -64,28 +68,11 @@ check_module_resolution() {
 	esac
 }
 
-known_pve_kernel_ref() {
-	case "$KVER" in
-	7.0.2-2-pve)
-		printf '%s\n' 59dd19a1c4f66f932d222eac91f9f1454f9b10cc
-		;;
-	7.0.2-6-pve)
-		printf '%s\n' 87f22e55de30d73b83722b86790394564036b33c
-		;;
-	7.0.12-1-pve)
-		printf '%s\n' b8d87f8e97fa979f50d88673bd5be41de93ed2f3
-		;;
-	*)
-		return 1
-		;;
-	esac
-}
-
 section "host"
 hostname
 printf 'kernel=%s\n' "$KVER"
 printf 'install_dir=%s\n' "$INSTALL_DIR"
-PVE_KERNEL_REF_RECOMMENDED="$(known_pve_kernel_ref || true)"
+PVE_KERNEL_REF_RECOMMENDED="$(pve_kernel_ref_for "$KVER" || true)"
 if [ -n "$PVE_KERNEL_REF_RECOMMENDED" ]; then
 	printf 'pve_kernel_ref=%s\n' "$PVE_KERNEL_REF_RECOMMENDED"
 else

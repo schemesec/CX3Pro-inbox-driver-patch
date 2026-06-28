@@ -11,6 +11,8 @@ JOURNAL_SINCE="${JOURNAL_SINCE:-$(date '+%F 00:00:00')}"
 RUN_BUILD="${RUN_BUILD:-1}"
 RUN_VERIFY="${RUN_VERIFY:-1}"
 RUN_NVMET_STATUS="${RUN_NVMET_STATUS:-1}"
+EXPECT_PVE_KERNEL_REF="${EXPECT_PVE_KERNEL_REF:-}"
+STRICT_PREFLIGHT="${STRICT_PREFLIGHT:-0}"
 
 usage() {
 	cat <<EOF
@@ -33,6 +35,8 @@ Environment:
   RUN_BUILD=${RUN_BUILD}
   RUN_VERIFY=${RUN_VERIFY}
   RUN_NVMET_STATUS=${RUN_NVMET_STATUS}
+  EXPECT_PVE_KERNEL_REF=${EXPECT_PVE_KERNEL_REF}
+  STRICT_PREFLIGHT=${STRICT_PREFLIGHT}
   PF=${PF}
   NUM_VFS=${NUM_VFS}
   VF_VLAN=${VF_VLAN}
@@ -63,7 +67,11 @@ section() {
 }
 
 section "preflight"
-KVER="$KVER" ./preflight-upgrade.sh
+if [ "$STRICT_PREFLIGHT" = "1" ]; then
+	KVER="$KVER" ./preflight-upgrade.sh --strict
+else
+	KVER="$KVER" ./preflight-upgrade.sh
+fi
 
 section "resolve pve-kernel ref"
 ref_output="$(KVER="$KVER" ./find-pve-kernel-ref "$KVER")"
@@ -71,6 +79,10 @@ printf '%s\n' "$ref_output"
 PVE_KERNEL_REF="$(printf '%s\n' "$ref_output" | awk -F= '$1 == "pve_kernel_ref" { print $2; exit }')"
 if [ -z "$PVE_KERNEL_REF" ]; then
 	echo "error: find-pve-kernel-ref did not return pve_kernel_ref" >&2
+	exit 1
+fi
+if [ -n "$EXPECT_PVE_KERNEL_REF" ] && [ "$PVE_KERNEL_REF" != "$EXPECT_PVE_KERNEL_REF" ]; then
+	echo "error: expected pve-kernel ref ${EXPECT_PVE_KERNEL_REF}, got ${PVE_KERNEL_REF}" >&2
 	exit 1
 fi
 

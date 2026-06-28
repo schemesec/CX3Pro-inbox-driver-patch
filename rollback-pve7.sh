@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TESTED_KERNELS="${TESTED_KERNELS:-7.0.2-2-pve 7.0.2-6-pve}"
+TESTED_KERNELS="${TESTED_KERNELS:-}"
 KVER="${KVER:-$(uname -r)}"
 INSTALL_DIR="${INSTALL_DIR:-/lib/modules/${KVER}/updates/cx3pro-inbox-rocev2}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_DIR="${1:-}"
+
+# shellcheck source=lib/pve-kernel-refs.sh
+. "${REPO_ROOT}/lib/pve-kernel-refs.sh"
+TESTED_KERNELS="${TESTED_KERNELS:-$CX3PRO_TESTED_KERNELS}"
 
 usage() {
 	cat <<EOF
@@ -29,10 +33,10 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
 	exit 0
 fi
 
-case " $TESTED_KERNELS " in
-*" $KVER "*) ;;
-*) echo "error: this rollback script is validated for: $TESTED_KERNELS; current target is $KVER" >&2; exit 1 ;;
-esac
+if ! pve_kernel_is_tested "$KVER" "$TESTED_KERNELS"; then
+	echo "error: this rollback script is validated for: $TESTED_KERNELS; current target is $KVER" >&2
+	exit 1
+fi
 
 if [ "$(id -u)" -ne 0 ]; then
 	echo "error: rollback requires root" >&2
@@ -63,6 +67,11 @@ fi
 cp -a "$BACKUP_DIR" "$INSTALL_DIR"
 depmod "$KVER"
 update-initramfs -u -k "$KVER"
+
+echo "dependency check:"
+modprobe --show-depends -S "$KVER" mlx4_core | sed -n '1,5p'
+modprobe --show-depends -S "$KVER" mlx4_en | sed -n '1,8p'
+modprobe --show-depends -S "$KVER" mlx4_ib | sed -n '1,12p'
 
 echo "rollback complete; reboot is required to activate restored modules"
 echo "current install restored from ${BACKUP_DIR}"

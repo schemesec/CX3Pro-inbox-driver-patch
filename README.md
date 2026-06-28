@@ -70,11 +70,11 @@ listed in `TESTED_KERNELS`. `--force-kernel` is kept as a compatibility alias
 for intentionally testing an unlisted kernel.
 
 For kernels already listed in `TESTED_KERNELS`, `install-pve7.sh` auto-selects
-the validated Proxmox packaging ref when one is known. For a new Proxmox kernel,
-find the exact pve-kernel packaging commit for that kernel first and set
-`PVE_KERNEL_REF` explicitly before apply/build/install checks. This avoids
-accidentally building against a newer repository default branch than the host is
-actually running.
+the validated Proxmox packaging ref from `lib/pve-kernel-refs.sh` when one is
+known. For a new Proxmox kernel, find the exact pve-kernel packaging commit for
+that kernel first and set `PVE_KERNEL_REF` explicitly before apply/build/install
+checks. This avoids accidentally building against a newer repository default
+branch than the host is actually running.
 
 Example discovery step for a new kernel:
 
@@ -124,6 +124,16 @@ The repo includes the same style of host-side helper scripts used in
   for the commit matching a target kernel and prints the pinned
   `ubuntu-kernel` and `zfsonlinux` gitlinks. Use it before testing an unlisted
   Proxmox kernel.
+- `lib/pve-kernel-refs.sh` centralizes the tested-kernel list and exact
+  Proxmox packaging refs consumed by installer, preflight, rollback, and
+  validation scripts.
+- `check-mlx4-rocev2-source` runs lightweight semantic source checks after the
+  mlx4 patch applies, catching common forward-port drift in RoCEv2 GID type
+  plumbing before build/install/reboot. It accepts either the kernel source tree
+  itself or a parent Proxmox packaging checkout containing the source tree.
+- `upgrade-lifecycle` prints and logs the guarded reboot, rollback, and
+  re-upgrade command blocks used for the lifecycle test. It is dry-run by
+  default for dangerous operations.
 - `port-update-check` runs the safe, non-installing update-readiness flow:
   preflight, ref discovery, apply-check, optional build-only, verifier, and
   optional NVMe/RDMA VM lab status. It does not install modules, reboot, detach

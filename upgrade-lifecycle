@@ -1,0 +1,217 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOG_DIR="${LOG_DIR:-${REPO_ROOT}/logs}"
+TS="${TS:-$(date +%Y%m%d-%H%M%S)}"
+LOG="${LOG_DIR}/upgrade-lifecycle-${TS}.log"
+
+PF="${PF:-enp23s0}"
+NUM_VFS="${NUM_VFS:-12}"
+CLIENT_SSH="${CLIENT_SSH:-root@192.168.1.50}"
+CLIENT_DEV="${CLIENT_DEV:-rocep23s0}"
+OLD_KERNEL="${OLD_KERNEL:-7.0.2-6-pve}"
+NEW_KERNEL="${NEW_KERNEL:-7.0.12-1-pve}"
+ROLLBACK_SNAPSHOT="${ROLLBACK_SNAPSHOT:-rpool/ROOT/pve-1@pre-inbox-dist-upgrade-20260628-024359}"
+ROLLBACK_ROOT="${ROLLBACK_ROOT:-rpool/ROOT/pve-1}"
+PVE_KERNEL_REF="${PVE_KERNEL_REF:-b8d87f8e97fa979f50d88673bd5be41de93ed2f3}"
+TESTED_KERNELS="${TESTED_KERNELS:-7.0.2-2-pve 7.0.2-6-pve 7.0.12-1-pve}"
+
+usage() {
+	cat <<EOF
+Usage: $0 <command>
+
+Guarded lifecycle helper for the tested CX3 Pro inbox rollback/re-upgrade
+workflow. Dry-run is the default for destructive commands.
+
+Commands:
+  status              Log current kernel, Proxmox version, modules, apt health.
+  current-reboot-cmd  Print the current-state reboot validation command.
+  rollback-cmd        Print the guarded rollback commands.
+  reupgrade-cmd       Print the re-upgrade, rebuild, reboot, and validation commands.
+  snapshot            Create a recursive validated snapshot only with ALLOW_SNAPSHOT=1.
+
+Dangerous operations are not executed by this script except snapshot, and even
+that requires ALLOW_SNAPSHOT=1. Use the printed rollback/re-upgrade commands
+from an attended shell after reviewing the target snapshot and kernels.
+
+Environment:
+  OLD_KERNEL=${OLD_KERNEL}
+  NEW_KERNEL=${NEW_KERNEL}
+  ROLLBACK_SNAPSHOT=${ROLLBACK_SNAPSHOT}
+  ROLLBACK_ROOT=${ROLLBACK_ROOT}
+  PVE_KERNEL_REF=${PVE_KERNEL_REF}
+  CLIENT_SSH=${CLIENT_SSH}
+  CLIENT_DEV=${CLIENT_DEV}
+  NUM_VFS=${NUM_VFS}
+  LOG_DIR=${LOG_DIR}
+EOF
+}
+
+mkdir -p "$LOG_DIR"
+cd "$REPO_ROOT"
+
+log() {
+	printf '%s\n' "$*" | tee -a "$LOG"
+}
+
+section() {
+	log ""
+	log "=== $* ==="
+}
+
+quote() {
+	printf '%q' "$1"
+}
+
+print_env() {
+	section "environment"
+	log "repo=${REPO_ROOT}"
+	log "log=${LOG}"
+	log "old_kernel=${OLD_KERNEL}"
+	log "new_kernel=${NEW_KERNEL}"
+	log "rollback_snapshot=${ROLLBACK_SNAPSHOT}"
+	log "rollback_root=${ROLLBACK_ROOT}"
+	log "pve_kernel_ref=${PVE_KERNEL_REF}"
+	log "client_ssh=${CLIENT_SSH}"
+	log "client_dev=${CLIENT_DEV}"
+	log "num_vfs=${NUM_VFS}"
+}
+
+status() {
+	print_env
+	section "host"
+	{
+		hostname
+		uname -r
+		cat /proc/sys/kernel/random/boot_id
+		uptime -s
+		pveversion | head -n 1
+	} 2>&1 | tee -a "$LOG"
+
+	section "module resolution"
+	modinfo -n mlx4_core mlx4_en mlx4_ib 2>&1 | tee -a "$LOG"
+
+	section "apt repair simulation"
+	apt-get -s -f install 2>&1 | tee -a "$LOG"
+
+	section "failed units"
+	systemctl --failed --no-pager 2>&1 | tee -a "$LOG"
+
+	section "stale perftest"
+	{
+		pgrep -a ib_write_bw || true
+		pgrep -a ib_send_bw || true
+	} 2>&1 | tee -a "$LOG"
+
+	section "boot kernels"
+	proxmox-boot-tool kernel list 2>&1 | tee -a "$LOG"
+}
+
+current_reboot_cmd() {
+	print_env
+	section "current-state reboot check"
+	cat <<EOF | tee -a "$LOG"
+prev_boot_id=\$(cat /proc/sys/kernel/random/boot_id)
+systemctl reboot
+# after pvs3 returns:
+cd $(quote "$REPO_ROOT")
+CLIENT_SSH=$(quote "$CLIENT_SSH") CLIENT_DEV=$(quote "$CLIENT_DEV") NUM_VFS=$(quote "$NUM_VFS") \\
+RUN_BUILD=0 RUN_NVMET_STATUS=0 EXPECT_KERNEL=$(quote "$NEW_KERNEL") \\
+EXPECT_BOOT_ID_CHANGED_FROM="\${prev_boot_id}" JOURNAL_SINCE="\$(uptime -s)" \\
+  ./port-validation --stage post-reboot
+EOF
+}
+
+rollback_cmd() {
+	print_env
+	section "guarded rollback commands"
+	cat <<EOF | tee -a "$LOG"
+# Review target first:
+zfs list -t snapshot -o name,creation | grep $(quote "$ROLLBACK_SNAPSHOT")
+proxmox-boot-tool kernel pin $(quote "$OLD_KERNEL") --next-boot
+proxmox-boot-tool refresh
+zfs rollback -r $(quote "$ROLLBACK_SNAPSHOT")
+sync
+systemctl reboot
+# after pvs3 returns on ${OLD_KERNEL}, restore current repo scripts:
+cd $(quote "$REPO_ROOT")
+git fetch origin main
+git reset --hard origin/main
+CLIENT_SSH=$(quote "$CLIENT_SSH") CLIENT_DEV=$(quote "$CLIENT_DEV") NUM_VFS=$(quote "$NUM_VFS") \\
+RUN_BUILD=0 RUN_NVMET_STATUS=0 EXPECT_KERNEL=$(quote "$OLD_KERNEL") JOURNAL_SINCE="\$(uptime -s)" \\
+  ./port-validation --stage post-reboot
+EOF
+}
+
+reupgrade_cmd() {
+	print_env
+	section "re-upgrade commands"
+	cat <<EOF | tee -a "$LOG"
+cd $(quote "$REPO_ROOT")
+TS=\$(date +%Y%m%d-%H%M%S)
+apt-get update 2>&1 | tee logs/rollback-apt-update-\${TS}.log
+apt-get -s full-upgrade 2>&1 | tee logs/rollback-full-upgrade-sim-\${TS}.log
+apt-get install -y proxmox-headers-$(quote "$NEW_KERNEL") 2>&1 | tee logs/rollback-install-headers-${NEW_KERNEL%%-*}-\${TS}.log
+apt-get -y full-upgrade 2>&1 | tee logs/rollback-full-upgrade-\${TS}.log
+KVER=$(quote "$NEW_KERNEL") PVE_KERNEL_REF=$(quote "$PVE_KERNEL_REF") TESTED_KERNELS=$(quote "$TESTED_KERNELS") \\
+  ./install-pve7.sh --no-apt
+proxmox-boot-tool kernel unpin --next-boot || true
+proxmox-boot-tool refresh
+old_boot_id=\$(cat /proc/sys/kernel/random/boot_id)
+systemctl reboot
+# after pvs3 returns:
+cd $(quote "$REPO_ROOT")
+CLIENT_SSH=$(quote "$CLIENT_SSH") CLIENT_DEV=$(quote "$CLIENT_DEV") NUM_VFS=$(quote "$NUM_VFS") \\
+RUN_BUILD=0 RUN_NVMET_STATUS=0 EXPECT_KERNEL=$(quote "$NEW_KERNEL") \\
+EXPECT_BOOT_ID_CHANGED_FROM="\${old_boot_id}" JOURNAL_SINCE="\$(uptime -s)" \\
+  ./port-validation --stage post-upgrade
+EOF
+}
+
+snapshot() {
+	print_env
+	if [ "${ALLOW_SNAPSHOT:-0}" != "1" ]; then
+		log "refusing to create snapshot; set ALLOW_SNAPSHOT=1"
+		exit 1
+	fi
+	local snap="post-lifecycle-validated-${TS}"
+	local zlog="${LOG_DIR}/post-lifecycle-zfs-${TS}.txt"
+	zfs snapshot -r "rpool@${snap}"
+	{
+		echo "snapshot=rpool@${snap}"
+		echo "created=$(date -Is)"
+		echo "kernel=$(uname -r)"
+		echo "boot_id=$(cat /proc/sys/kernel/random/boot_id)"
+		echo
+		zfs list -t snapshot -o name,creation,used,refer | grep "${snap}"
+	} > "$zlog"
+	log "snapshot=rpool@${snap}"
+	log "snapshot_log=${zlog}"
+}
+
+case "${1:-}" in
+status)
+	status
+	;;
+current-reboot-cmd)
+	current_reboot_cmd
+	;;
+rollback-cmd)
+	rollback_cmd
+	;;
+reupgrade-cmd)
+	reupgrade_cmd
+	;;
+snapshot)
+	snapshot
+	;;
+-h|--help|"")
+	usage
+	;;
+*)
+	echo "error: unknown command: $1" >&2
+	usage >&2
+	exit 2
+	;;
+esac

@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CHECK_ROOT="${KERNEL_TREE:-${1:-}}"
+PORT_C_REL="drivers/net/ethernet/mellanox/mlx4/port.c"
+
+usage() {
+	cat <<EOF
+Usage: $0 <kernel-source-tree-or-parent>
+
+Run lightweight source-level smoke checks after the CX3 Pro mlx4 RoCEv2 patch
+has been applied. This catches semantic drift in the patched mlx4 GID plumbing
+that a plain git apply check can miss.
+EOF
+}
+
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+	usage
+	exit 0
+fi
+
+if [ -z "$CHECK_ROOT" ] || [ ! -d "$CHECK_ROOT" ]; then
+	echo "error: pass a kernel source tree or parent directory" >&2
+	usage >&2
+	exit 2
+fi
+
+find_kernel_tree() {
+	local root="$1"
+	local port_c
+
+	if [ -f "$root/$PORT_C_REL" ]; then
+		printf '%s\n' "$root"
+		return 0
+	fi
+
+	port_c="$(find "$root" \
+		-path '*/.git' -prune -o \
+		-path "*/$PORT_C_REL" -print -quit)"
+	if [ -n "$port_c" ]; then
+		printf '%s\n' "${port_c%/$PORT_C_REL}"
+		return 0
+	fi
+
+	return 1
+}
+
+KERNEL_TREE="$(find_kernel_tree "$CHECK_ROOT")" || {
+	echo "error: could not find kernel source under $CHECK_ROOT" >&2
+	usage >&2
+	exit 2
+}
+
+if ! git -C "$KERNEL_TREE" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+	echo "error: kernel source is not a git work tree: $KERNEL_TREE" >&2
+	usage >&2
+	exit 2
+fi
+
+echo "checking kernel source: $KERNEL_TREE"
+cd "$KERNEL_TREE"
+
+require_grep() {
+	local desc="$1"
+	local pattern="$2"
+	shift 2
+
+	if git grep -n -E "$pattern" -- "$@" >/tmp/cx3pro-source-check.$$; then
+		echo "PASS: $desc"
+		cat /tmp/cx3pro-source-check.$$
+	else
+		echo "FAIL: $desc" >&2
+		echo "pattern: $pattern" >&2
+		echo "paths: $*" >&2
+		rm -f /tmp/cx3pro-source-check.$$
+		exit 1
+	fi
+	rm -f /tmp/cx3pro-source-check.$$
+}
+
+reject_grep() {
+	local desc="$1"
+	local pattern="$2"
+	shift 2
+
+	if git grep -n -E "$pattern" -- "$@" >/tmp/cx3pro-source-check.$$; then
+		echo "FAIL: $desc" >&2
+		cat /tmp/cx3pro-source-check.$$ >&2
+		rm -f /tmp/cx3pro-source-check.$$
+		exit 1
+	fi
+	rm -f /tmp/cx3pro-source-check.$$
+	echo "PASS: $desc"
+}
+
+require_call_block() {
+	local desc="$1"
+	local file="$2"
+	local call_pattern="$3"
+	local required_pattern="$4"
+
+	if awk -v call="$call_pattern" -v required="$required_pattern" '
+		$0 ~ call { in_call = 1; block = $0 "\n"; next }
+		in_call {
+			block = block $0 "\n"
+			if ($0 ~ required)
+				found_required = 1
+			if ($0 ~ /;/) {
+				if (found_required) {
+					printf "%s", block
+					exit 0
+				}
+				exit 1
+			}
+		}
+		END {
+			if (!in_call)
+				exit 2
+		}
+	' "$file" >/tmp/cx3pro-source-check.$$; then
+		echo "PASS: $desc"
+		cat /tmp/cx3pro-source-check.$$
+	else
+		local rc=$?
+		echo "FAIL: $desc" >&2
+		echo "call pattern: $call_pattern" >&2
+		echo "required pattern: $required_pattern" >&2
+		echo "path: $file" >&2
+		rm -f /tmp/cx3pro-source-check.$$
+		exit "$rc"
+	fi
+	rm -f /tmp/cx3pro-source-check.$$
+}
+
+require_grep "VF RoCE address command path is present" \
+	"MLX4_SET_PORT_ROCE_ADDR" \
+	drivers/net/ethernet/mellanox/mlx4/port.c
+
+require_grep "mlx4_get_roce_gid_from_slave returns GID type" \
+	"enum mlx4_roce_gid_type[[:space:]]+\\*gid_type" \
+	include/linux/mlx4/device.h drivers/net/ethernet/mellanox/mlx4/port.c
+
+require_grep "PF GID cache stores per-GID RoCE type" \
+	"gid_type\\[MLX4_ROCE_MAX_GIDS\\]" \
+	drivers/net/ethernet/mellanox/mlx4/mlx4.h
+
+require_grep "IB packet builders consume gid_type_valid" \
+	"gid_type_valid" \
+	drivers/infiniband/hw/mlx4/ah.c drivers/infiniband/hw/mlx4/qp.c
+
+require_grep "RoCEv2 UDP encapsulation remains exposed" \
+	"RDMA_CORE_PORT_IBA_ROCE_UDP_ENCAP" \
+	drivers/infiniband/hw/mlx4/main.c
+
+require_grep "multifunction RoCEv2 module parameter remains present" \
+	"enable_mfunc_roce_v2" \
+	drivers/net/ethernet/mellanox/mlx4/fw.c drivers/net/ethernet/mellanox/mlx4/main.c
+
+require_call_block "GID lookup result is used in mlx4 QP path" \
+	drivers/infiniband/hw/mlx4/qp.c \
+	"mlx4_get_roce_gid_from_slave" \
+	"gid_type"
+
+reject_grep "old four-argument mlx4_get_roce_gid_from_slave prototype is gone" \
+	"mlx4_get_roce_gid_from_slave\\([^,]+,[^,]+,[^,]+,[[:space:]]*u8[[:space:]]+\\*gid\\)" \
+	include/linux/mlx4/device.h drivers/net/ethernet/mellanox/mlx4/port.c
+
+reject_grep "multifunction QP path does not fetch raw GID without type" \
+	"mlx4_get_roce_gid_from_slave.*&sgid\\.raw\\[0\\]\\)" \
+	drivers/infiniband/hw/mlx4/qp.c
+
+if git grep -n "MLX4_ROCE_MFUNC_QP_GIDS" -- drivers/net/ethernet/mellanox/mlx4 include/linux/mlx4 >/tmp/cx3pro-source-check.$$; then
+	echo "INFO: MLX4_ROCE_MFUNC_QP_GIDS references"
+	cat /tmp/cx3pro-source-check.$$
+else
+	echo "WARN: MLX4_ROCE_MFUNC_QP_GIDS is not referenced; high VF counts need manual review" >&2
+fi
+rm -f /tmp/cx3pro-source-check.$$
+
+echo "check-mlx4-rocev2-source: PASS"

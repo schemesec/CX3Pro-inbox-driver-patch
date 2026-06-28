@@ -1,0 +1,67 @@
+=== CX3 Pro inbox RoCEv2 VF patch installer ===
+repo=/root/CX3Pro-inbox-driver-patch
+kernel=7.0.12-1-pve
+pve_kernel_ref=b8d87f8e97fa979f50d88673bd5be41de93ed2f3
+jobs=12
+build_root=/root/cx3pro-inbox-build
+install_dir=/lib/modules/7.0.12-1-pve/updates/cx3pro-inbox-rocev2
+tested_kernels=7.0.2-2-pve 7.0.2-6-pve 7.0.12-1-pve
+log=/root/CX3Pro-inbox-driver-patch/logs/install-20260628-101046.log
+
+using known validated pve-kernel ref for 7.0.12-1-pve
++ mkdir -p /root/cx3pro-inbox-build
++ git -C /root/cx3pro-inbox-build/pve-kernel fetch --depth 1 origin
++ git -C /root/cx3pro-inbox-build/pve-kernel reset --hard FETCH_HEAD
+HEAD is now at f5f9a7c make: fix deriving build-host architecture
++ git -C /root/cx3pro-inbox-build/pve-kernel fetch --depth 1 origin b8d87f8e97fa979f50d88673bd5be41de93ed2f3
+From https://github.com/proxmox/pve-kernel
+ * branch            b8d87f8e97fa979f50d88673bd5be41de93ed2f3 -> FETCH_HEAD
++ git -C /root/cx3pro-inbox-build/pve-kernel reset --hard FETCH_HEAD
+HEAD is now at b8d87f8 update ABI file for 7.0.12-1-pve (amd64)
++ git -C /root/cx3pro-inbox-build/pve-kernel submodule set-url submodules/ubuntu-kernel https://git.proxmox.com/git/mirror_ubuntu-kernels.git
+Synchronizing submodule url for 'submodules/ubuntu-kernel'
++ git -C /root/cx3pro-inbox-build/pve-kernel submodule set-url submodules/zfsonlinux https://git.proxmox.com/git/zfsonlinux.git
++ git -C /root/cx3pro-inbox-build/pve-kernel submodule update --init submodules/ubuntu-kernel
++ cp /root/CX3Pro-inbox-driver-patch/patches/kernel/0066-mlx4-preserve-rocev2-gid-type-for-sriov-vfs.patch /root/cx3pro-inbox-build/pve-kernel/patches/kernel/
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel reset --hard HEAD
+HEAD is now at d873103e8ac3 Linux 7.0.12
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel clean -fdx
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel apply --check /root/CX3Pro-inbox-driver-patch/patches/kernel/0066-mlx4-preserve-rocev2-gid-type-for-sriov-vfs.patch
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel apply /root/CX3Pro-inbox-driver-patch/patches/kernel/0066-mlx4-preserve-rocev2-gid-type-for-sriov-vfs.patch
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel diff --check
++ /root/CX3Pro-inbox-driver-patch/check-mlx4-rocev2-source /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel
+PASS: VF RoCE address command path is present
+drivers/net/ethernet/mellanox/mlx4/port.c:1407:		    in_modifier != MLX4_SET_PORT_ROCE_ADDR) {
+drivers/net/ethernet/mellanox/mlx4/port.c:1446:		case MLX4_SET_PORT_ROCE_ADDR:
+PASS: mlx4_get_roce_gid_from_slave returns GID type
+drivers/net/ethernet/mellanox/mlx4/port.c:2081:				 u8 *gid, enum mlx4_roce_gid_type *gid_type)
+include/linux/mlx4/device.h:1487:				 u8 *gid, enum mlx4_roce_gid_type *gid_type);
+PASS: PF GID cache stores per-GID RoCE type
+drivers/net/ethernet/mellanox/mlx4/mlx4.h:764:	enum mlx4_roce_gid_type	gid_type[MLX4_ROCE_MAX_GIDS];
+PASS: IB packet builders consume gid_type_valid
+drivers/infiniband/hw/mlx4/ah.c:112:		ah->gid_type_valid = true;
+drivers/infiniband/hw/mlx4/ah.c:191:			mah->gid_type_valid = true;
+drivers/infiniband/hw/mlx4/ah.c:204:				mah->gid_type_valid = true;
+drivers/infiniband/hw/mlx4/qp.c:3569:			if (ah->gid_type_valid) {
+PASS: RoCEv2 UDP encapsulation remains exposed
+drivers/infiniband/hw/mlx4/main.c:2487:				immutable->core_cap_flags = RDMA_CORE_PORT_IBA_ROCE_UDP_ENCAP;
+drivers/infiniband/hw/mlx4/main.c:2490:					RDMA_CORE_PORT_IBA_ROCE_UDP_ENCAP;
+drivers/infiniband/hw/mlx4/main.c:2496:		    RDMA_CORE_PORT_IBA_ROCE_UDP_ENCAP))
+PASS: multifunction RoCEv2 module parameter remains present
+drivers/net/ethernet/mellanox/mlx4/fw.c:45:static bool enable_mfunc_roce_v2 = true;
+drivers/net/ethernet/mellanox/mlx4/fw.c:46:module_param_named(enable_mfunc_roce_v2, enable_mfunc_roce_v2, bool, 0444);
+drivers/net/ethernet/mellanox/mlx4/fw.c:47:MODULE_PARM_DESC(enable_mfunc_roce_v2,
+drivers/net/ethernet/mellanox/mlx4/fw.c:1407:	if (!enable_mfunc_roce_v2)
+PASS: GID lookup result is used in mlx4 QP path
+			err = mlx4_get_roce_gid_from_slave(to_mdev(ib_dev)->dev,
+							   be32_to_cpu(ah->av.ib.port_pd) >> 24,
+							   ah->av.ib.gid_index, &sgid.raw[0],
+							   &gid_type);
+PASS: old four-argument mlx4_get_roce_gid_from_slave prototype is gone
+PASS: multifunction QP path does not fetch raw GID without type
+INFO: MLX4_ROCE_MFUNC_QP_GIDS references
+drivers/net/ethernet/mellanox/mlx4/port.c:1123:#define MLX4_ROCE_MFUNC_QP_GIDS 64
+check-mlx4-rocev2-source: PASS
+apply-check-only complete
+patch applied cleanly to source version 7.0.12
+log=/root/CX3Pro-inbox-driver-patch/logs/install-20260628-101046.log

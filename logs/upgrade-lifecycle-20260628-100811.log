@@ -1,0 +1,51 @@
+
+=== environment ===
+repo=/root/CX3Pro-inbox-driver-patch
+log=/root/CX3Pro-inbox-driver-patch/logs/upgrade-lifecycle-20260628-100811.log
+old_kernel=7.0.2-6-pve
+new_kernel=7.0.12-1-pve
+rollback_snapshot=rpool/ROOT/pve-1@pre-inbox-dist-upgrade-20260628-024359
+rollback_root=rpool/ROOT/pve-1
+pve_kernel_ref=b8d87f8e97fa979f50d88673bd5be41de93ed2f3
+client_ssh=root@192.168.1.50
+client_dev=rocep23s0
+num_vfs=12
+
+=== host ===
+pvs3
+7.0.12-1-pve
+c38a67ac-bd99-4826-b178-3be31e3b587f
+2026-06-28 04:15:48
+pve-manager/9.2.3/d0fde103346cf89a (running kernel: 7.0.12-1-pve)
+
+=== module resolution ===
+/lib/modules/7.0.12-1-pve/updates/cx3pro-inbox-rocev2/mlx4_core.ko
+/lib/modules/7.0.12-1-pve/updates/cx3pro-inbox-rocev2/mlx4_en.ko
+/lib/modules/7.0.12-1-pve/updates/cx3pro-inbox-rocev2/mlx4_ib.ko
+
+=== apt repair simulation ===
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages were automatically installed and are no longer required:
+  proxmox-kernel-6.14.11-5-pve-signed proxmox-kernel-6.14.11-8-pve-signed
+  proxmox-kernel-6.17.13-7-pve-signed proxmox-kernel-6.17.9-1-pve-signed
+  proxmox-kernel-7.0.2-2-pve-signed
+Use 'apt autoremove' to remove them.
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+
+=== failed units ===
+  UNIT LOAD ACTIVE SUB DESCRIPTION
+
+0 loaded units listed.
+
+=== stale perftest ===
+
+=== boot kernels ===
+Manually selected kernels:
+None.
+
+Automatically selected kernels:
+6.17.13-13-pve
+7.0.12-1-pve
+7.0.2-6-pve

@@ -14,6 +14,8 @@ NUM_VFS="${NUM_VFS:-12}"
 JOURNAL_SINCE="${JOURNAL_SINCE:-$(uptime -s)}"
 EXPECT_KERNEL="${EXPECT_KERNEL:-}"
 EXPECT_BOOT_ID_CHANGED_FROM="${EXPECT_BOOT_ID_CHANGED_FROM:-}"
+EXPECT_PVE_KERNEL_REF="${EXPECT_PVE_KERNEL_REF:-}"
+STRICT_PREFLIGHT="${STRICT_PREFLIGHT:-0}"
 LOG_DIR="${LOG_DIR:-logs/validation}"
 WAIT_RDMACM_LINK_SECS="${WAIT_RDMACM_LINK_SECS:-120}"
 RDMACM_SETTLE_SECS="${RDMACM_SETTLE_SECS:-10}"
@@ -40,6 +42,8 @@ Environment:
   JOURNAL_SINCE=...               Kernel log scan start. Default: uptime -s.
   EXPECT_KERNEL=...               Optional exact kernel release to require.
   EXPECT_BOOT_ID_CHANGED_FROM=... Optional previous boot ID that must differ.
+  EXPECT_PVE_KERNEL_REF=...       Optional exact Proxmox packaging ref to require.
+  STRICT_PREFLIGHT=1              Make preflight warnings fatal in update check.
   RUN_UPDATE_CHECK=0              Skip port-update-check.
   RUN_RDMACM=0                    Skip VF RDMA-CM traffic test.
   RUN_NVMET_STATUS=1              Include nvmet-vm-lab status in update check.
@@ -216,6 +220,7 @@ wait_for_postboot_service
 if [ "$RUN_UPDATE_CHECK" = "1" ]; then
 	section "port update check"
 	run_logged env RUN_BUILD="$RUN_BUILD" RUN_VERIFY="$RUN_VERIFY" RUN_NVMET_STATUS="$RUN_NVMET_STATUS" \
+		EXPECT_PVE_KERNEL_REF="$EXPECT_PVE_KERNEL_REF" STRICT_PREFLIGHT="$STRICT_PREFLIGHT" \
 		JOURNAL_SINCE="$JOURNAL_SINCE" NUM_VFS="$NUM_VFS" ./port-update-check
 else
 	section "port update check"
