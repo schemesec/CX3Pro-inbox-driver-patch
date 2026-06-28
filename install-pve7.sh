@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TESTED_KERNELS="${TESTED_KERNELS:-7.0.2-2-pve 7.0.2-6-pve}"
+TESTED_KERNELS="${TESTED_KERNELS:-7.0.2-2-pve 7.0.2-6-pve 7.0.12-1-pve}"
 KVER="${KVER:-$(uname -r)}"
 JOBS="${JOBS:-$(nproc)}"
 INSTALL_DIR="${INSTALL_DIR:-/lib/modules/${KVER}/updates/cx3pro-inbox-rocev2}"
@@ -151,6 +151,9 @@ known_pve_kernel_ref() {
 		;;
 	7.0.2-6-pve)
 		printf '%s\n' 87f22e55de30d73b83722b86790394564036b33c
+		;;
+	7.0.12-1-pve)
+		printf '%s\n' b8d87f8e97fa979f50d88673bd5be41de93ed2f3
 		;;
 	*)
 		return 1
@@ -400,8 +403,10 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 need_file "$PATCH_FILE"
-need_file "/boot/config-${KVER}"
-need_file "/lib/modules/${KVER}/build/Module.symvers"
+if [ "$APPLY_CHECK_ONLY" -eq 0 ]; then
+	need_file "/boot/config-${KVER}"
+	need_file "/lib/modules/${KVER}/build/Module.symvers"
+fi
 
 if [ "$NO_BUILD" -eq 0 ]; then
 	ensure_build_deps

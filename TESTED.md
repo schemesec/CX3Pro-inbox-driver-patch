@@ -307,3 +307,63 @@ Previously observed and fixed:
   `enable_mfunc_roce_v2=Y`, PF/VF RoCEv2 GIDs, VF VLAN 20/QoS 3 policy,
   VF11 passthrough accounting, PFC on PCP 3, PF VLAN egress mapping, and a
   bounded kernel warning scan.
+
+## Proxmox dist-upgrade and post-upgrade validation, 2026-06-28
+
+- Clean rollback point created after a passing reboot gate:
+  `rpool@pre-inbox-dist-upgrade-20260628-024359`.
+- Pre-upgrade reboot validation passed on boot
+  `84eea1f7-2ec8-4721-823b-61e5ded5529b`, kernel `7.0.2-6-pve`.
+  Log:
+  `/root/CX3Pro-inbox-driver-patch/logs/validation/post-reboot-20260628-024237.log`.
+- Upgrade simulation selected target kernel `7.0.12-1-pve`; matching
+  `proxmox-headers-7.0.12-1-pve` was installed explicitly before reboot.
+- Exact target ref:
+  `b8d87f8e97fa979f50d88673bd5be41de93ed2f3`; pinned source gitlink:
+  `d873103e8ac3c51fbdb4be178bddb191af0f6a21`.
+- Initial apply-check against `7.0.12` exposed an installer tooling bug: the
+  script assumed the running kernel was the target and required target build
+  files even for `--apply-check-only`.
+- Fixed tooling:
+  - `install-pve7.sh` maps `7.0.12-1-pve` to the exact Proxmox ref.
+  - `install-pve7.sh --apply-check-only` no longer requires target
+    `/boot/config` or `Module.symvers`.
+  - `preflight-upgrade.sh` maps `7.0.12-1-pve`, so post-upgrade checks no
+    longer warn about a missing known ref.
+  - default `TESTED_KERNELS` includes `7.0.12-1-pve`.
+- `KVER=7.0.12-1-pve PVE_KERNEL_REF=b8d87f8e97fa979f50d88673bd5be41de93ed2f3 ./install-pve7.sh --no-apt`
+  built and installed the override. `mlx4_core.ko`, `mlx4_en.ko`, and
+  `mlx4_ib.ko` all had matching `7.0.12-1-pve` vermagic, and `mlx4_ib` symbol
+  CRCs matched patched `mlx4_core` exports. Log:
+  `/root/CX3Pro-inbox-driver-patch/logs/install-20260628-034053.log`.
+- Post-upgrade reboot validation passed on boot
+  `d630fe38-0e9c-4ef4-a824-558e57d64127`, kernel `7.0.12-1-pve`.
+  Log:
+  `/root/CX3Pro-inbox-driver-patch/logs/validation/post-upgrade-20260628-034405.log`.
+- VF RDMA-CM results after upgrade:
+
+  ```text
+  VF0  192.168.20.160 mlx4_0   50.14 Gbit/sec
+  VF1  192.168.20.161 mlx4_1   49.66 Gbit/sec
+  VF2  192.168.20.162 mlx4_2   49.94 Gbit/sec
+  VF3  192.168.20.163 mlx4_3   49.38 Gbit/sec
+  VF4  192.168.20.164 mlx4_4   49.66 Gbit/sec
+  VF5  192.168.20.165 mlx4_5   49.28 Gbit/sec
+  VF6  192.168.20.166 mlx4_6   50.57 Gbit/sec
+  VF7  192.168.20.167 mlx4_7   49.54 Gbit/sec
+  VF8  192.168.20.168 mlx4_8   49.60 Gbit/sec
+  VF9  192.168.20.169 mlx4_9   50.39 Gbit/sec
+  VF10 192.168.20.170 mlx4_10  49.60 Gbit/sec
+  ```
+
+- VF11 remained assigned to `vfio-pci` and was skipped by host VF testing.
+- Follow-up `RUN_BUILD=0 RUN_VERIFY=1 RUN_NVMET_STATUS=0 KVER=7.0.12-1-pve
+  JOURNAL_SINCE='2026-06-28 03:42:33' ./port-update-check` passed with zero
+  warnings and zero failures.
+- Package and service health after upgrade: `apt-get -s -f install` reported
+  no repairs needed, `systemctl --failed` reported no failed units, and no
+  stale `ib_write_bw` / `ib_send_bw` processes were present.
+- `nvmet-vm-lab status` completed read-only. pvs1 target modules were loaded
+  with no pvs1 errors since `2026-06-28 00:00:00`; VM 100 currently shows only
+  the normal `sda` disk, so no NVMe/RDMA VM disk is attached after this
+  upgrade pass.

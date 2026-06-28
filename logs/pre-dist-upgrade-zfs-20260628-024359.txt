@@ -1,0 +1,9 @@
+rpool
+rpool/ROOT
+rpool/ROOT/pve-1
+rpool/data
+rpool/data/vm-100-disk-0
+rpool/data/vm-100-disk-1
+rpool/data/vm-101-disk-0
+rpool/data/vm-101-disk-1
+rpool/var-lib-vz

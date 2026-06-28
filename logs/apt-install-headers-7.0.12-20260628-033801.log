@@ -1,0 +1,89 @@
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages were automatically installed and are no longer required:
+  proxmox-kernel-6.14.11-5-pve-signed proxmox-kernel-6.17.9-1-pve-signed
+Use 'apt autoremove' to remove them.
+The following additional packages will be installed:
+  proxmox-kernel-7.0 proxmox-kernel-7.0.12-1-pve-signed
+The following NEW packages will be installed:
+  proxmox-headers-7.0.12-1-pve proxmox-kernel-7.0.12-1-pve-signed
+The following packages will be upgraded:
+  proxmox-kernel-7.0
+1 upgraded, 2 newly installed, 0 to remove and 110 not upgraded.
+Need to get 147 MB of archives.
+After this operation, 1,140 MB of additional disk space will be used.
+Get:1 http://download.proxmox.com/debian/pve trixie/pve-no-subscription amd64 proxmox-headers-7.0.12-1-pve amd64 7.0.12-1 [15.9 MB]
+Get:2 http://download.proxmox.com/debian/pve trixie/pve-no-subscription amd64 proxmox-kernel-7.0.12-1-pve-signed amd64 7.0.12-1 [131 MB]
+Get:3 http://download.proxmox.com/debian/pve trixie/pve-no-subscription amd64 proxmox-kernel-7.0 amd64 7.0.12-1 [12.9 kB]
+apt-listchanges: Reading changelogs...
+Fetched 147 MB in 4s (36.8 MB/s)
+Selecting previously unselected package proxmox-headers-7.0.12-1-pve.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 146715 files and directories currently installed.)
+Preparing to unpack .../proxmox-headers-7.0.12-1-pve_7.0.12-1_amd64.deb ...
+Unpacking proxmox-headers-7.0.12-1-pve (7.0.12-1) ...
+Selecting previously unselected package proxmox-kernel-7.0.12-1-pve-signed.
+Preparing to unpack .../proxmox-kernel-7.0.12-1-pve-signed_7.0.12-1_amd64.deb ...
+Unpacking proxmox-kernel-7.0.12-1-pve-signed (7.0.12-1) ...
+Preparing to unpack .../proxmox-kernel-7.0_7.0.12-1_amd64.deb ...
+Unpacking proxmox-kernel-7.0 (7.0.12-1) over (7.0.2-6) ...
+Setting up proxmox-headers-7.0.12-1-pve (7.0.12-1) ...
+Setting up proxmox-kernel-7.0.12-1-pve-signed (7.0.12-1) ...
+Examining /etc/kernel/postinst.d.
+run-parts: executing /etc/kernel/postinst.d/dkms 7.0.12-1-pve /boot/vmlinuz-7.0.12-1-pve
+Sign command: /lib/modules/7.0.12-1-pve/build/scripts/sign-file
+Signing key: /var/lib/dkms/mok.key
+Public certificate (MOK): /var/lib/dkms/mok.pub
+
+Autoinstall of module kernel-mft-dkms/4.25.1 for kernel 7.0.12-1-pve (x86_64)
+Building module(s)... done.
+Signing module /var/lib/dkms/kernel-mft-dkms/4.25.1/build/./mst_backward_compatibility/mst_pci/mst_pci.ko
+Signing module /var/lib/dkms/kernel-mft-dkms/4.25.1/build/./mst_backward_compatibility/mst_pciconf/mst_pciconf.ko
+Installing /lib/modules/7.0.12-1-pve/updates/dkms/mst_pci.ko
+Installing /lib/modules/7.0.12-1-pve/updates/dkms/mst_pciconf.ko
+Running depmod... done.
+
+Autoinstall on 7.0.12-1-pve succeeded for module(s) kernel-mft-dkms.
+run-parts: executing /etc/kernel/postinst.d/initramfs-tools 7.0.12-1-pve /boot/vmlinuz-7.0.12-1-pve
+update-initramfs: Generating /boot/initrd.img-7.0.12-1-pve
+Running hook script 'zz-proxmox-boot'..
+Re-executing '/etc/kernel/postinst.d/zz-proxmox-boot' in new private mount namespace..
+Copying and configuring kernels on /dev/disk/by-uuid/E2A2-1994
+	Copying kernel and creating boot-entry for 6.17.13-7-pve
+	Copying kernel and creating boot-entry for 7.0.12-1-pve
+	Copying kernel and creating boot-entry for 7.0.2-6-pve
+	Removing old version 7.0.2-2-pve
+run-parts: executing /etc/kernel/postinst.d/proxmox-auto-removal 7.0.12-1-pve /boot/vmlinuz-7.0.12-1-pve
+run-parts: executing /etc/kernel/postinst.d/zz-proxmox-boot 7.0.12-1-pve /boot/vmlinuz-7.0.12-1-pve
+Re-executing '/etc/kernel/postinst.d/zz-proxmox-boot' in new private mount namespace..
+Copying and configuring kernels on /dev/disk/by-uuid/E2A2-1994
+	Copying kernel and creating boot-entry for 6.17.13-7-pve
+	Copying kernel and creating boot-entry for 7.0.12-1-pve
+	Copying kernel and creating boot-entry for 7.0.2-6-pve
+run-parts: executing /etc/kernel/postinst.d/zz-update-grub 7.0.12-1-pve /boot/vmlinuz-7.0.12-1-pve
+Generating grub configuration file ...
+Found linux image: /boot/vmlinuz-7.0.12-1-pve
+Found initrd image: /boot/initrd.img-7.0.12-1-pve
+/usr/sbin/grub-probe: error: unknown filesystem.
+Found linux image: /boot/vmlinuz-7.0.2-6-pve
+Found initrd image: /boot/initrd.img-7.0.2-6-pve
+Found linux image: /boot/vmlinuz-7.0.2-2-pve
+Found initrd image: /boot/initrd.img-7.0.2-2-pve
+Found linux image: /boot/vmlinuz-6.17.13-7-pve
+Found initrd image: /boot/initrd.img-6.17.13-7-pve
+Found linux image: /boot/vmlinuz-6.17.9-1-pve
+Found initrd image: /boot/initrd.img-6.17.9-1-pve
+Found linux image: /boot/vmlinuz-6.14.11-8-pve
+Found initrd image: /boot/initrd.img-6.14.11-8-pve
+Found linux image: /boot/vmlinuz-6.14.11-5-pve
+Found initrd image: /boot/initrd.img-6.14.11-5-pve
+Found linux image: /boot/vmlinuz-6.14.8-2-pve
+Found initrd image: /boot/initrd.img-6.14.8-2-pve
+/usr/sbin/grub-probe: error: unknown filesystem.
+Found memtest86+ 64bit EFI image: /boot/memtest86+x64.efi
+Found memtest86+ 32bit EFI image: /boot/memtest86+ia32.efi
+Found memtest86+ 64bit image: /boot/memtest86+x64.bin
+Found memtest86+ 32bit image: /boot/memtest86+ia32.bin
+Adding boot menu entry for UEFI Firmware Settings ...
+done
+Setting up proxmox-kernel-7.0 (7.0.12-1) ...

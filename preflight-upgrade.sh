@@ -72,6 +72,9 @@ known_pve_kernel_ref() {
 	7.0.2-6-pve)
 		printf '%s\n' 87f22e55de30d73b83722b86790394564036b33c
 		;;
+	7.0.12-1-pve)
+		printf '%s\n' b8d87f8e97fa979f50d88673bd5be41de93ed2f3
+		;;
 	*)
 		return 1
 		;;

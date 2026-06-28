@@ -490,3 +490,83 @@ Next gate before calling the port upgrade-safe: run the Proxmox package upgrade
 workflow from the pre-upgrade ZFS snapshot, rebuild/install the override for
 the upgraded kernel, reboot, then run `port-validation --stage post-upgrade`
 with RDMA-CM enabled.
+
+## Proxmox dist-upgrade validation, 2026-06-28
+
+Rollback snapshot before upgrade:
+
+- Recursive ZFS snapshot: `rpool@pre-inbox-dist-upgrade-20260628-024359`
+- Snapshot includes `rpool/ROOT`, `rpool/ROOT/pve-1`, VM zvols, and
+  `rpool/var-lib-vz`.
+- Snapshot inventory log:
+  `/root/CX3Pro-inbox-driver-patch/logs/pre-dist-upgrade-zfs-20260628-024359.txt`
+
+Pre-upgrade reboot gate:
+
+- Boot ID: `84eea1f7-2ec8-4721-823b-61e5ded5529b`
+- Kernel: `7.0.2-6-pve`
+- Passing log:
+  `/root/CX3Pro-inbox-driver-patch/logs/validation/post-reboot-20260628-024237.log`
+- Result: `port-validation post-reboot: PASS`; VF0-VF10 RDMA-CM passed at
+  `49.15-50.86 Gbit/sec`, VF11 skipped on `vfio-pci`.
+
+Upgrade target:
+
+- `apt full-upgrade` moved Proxmox from `9.1` era packages to `9.2` packages.
+- New target kernel: `7.0.12-1-pve`
+- Exact Proxmox packaging ref:
+  `b8d87f8e97fa979f50d88673bd5be41de93ed2f3`
+- Proxmox-pinned kernel source:
+  `d873103e8ac3c51fbdb4be178bddb191af0f6a21`
+- Matching headers package installed explicitly:
+  `proxmox-headers-7.0.12-1-pve`
+
+Upgrade issue found and fixed:
+
+- `install-pve7.sh --apply-check-only` originally rejected the `7.0.12` source
+  while pvs3 was still booted on `7.0.2`, because it assumed the running kernel
+  was the target kernel and required target `/boot/config` plus headers even for
+  source-only apply checks.
+- `install-pve7.sh` now maps `7.0.12-1-pve` to the exact Proxmox ref and skips
+  `/boot/config` / `Module.symvers` checks for `--apply-check-only`.
+- `preflight-upgrade.sh` now also maps `7.0.12-1-pve` to the exact Proxmox
+  packaging ref, eliminating the post-upgrade warning.
+- `install-pve7.sh` default `TESTED_KERNELS` now includes `7.0.12-1-pve` after
+  the successful upgrade validation.
+
+Build/install result:
+
+- `KVER=7.0.12-1-pve PVE_KERNEL_REF=b8d87f8e97fa979f50d88673bd5be41de93ed2f3 ./install-pve7.sh --no-apt`
+  built and installed `mlx4_core.ko`, `mlx4_en.ko`, and `mlx4_ib.ko`.
+- All three modules had `7.0.12-1-pve` vermagic.
+- `mlx4_ib` symbol CRCs matched patched `mlx4_core` exports.
+- `modprobe -S 7.0.12-1-pve` resolved all three mlx4 modules to
+  `/lib/modules/7.0.12-1-pve/updates/cx3pro-inbox-rocev2`.
+- Install log:
+  `/root/CX3Pro-inbox-driver-patch/logs/install-20260628-034053.log`
+
+Post-upgrade reboot gate:
+
+- Boot ID: `d630fe38-0e9c-4ef4-a824-558e57d64127`
+- Kernel: `7.0.12-1-pve`
+- `cx3pro-rdma-postboot.service` ran after `pve-guests.service`, reloaded
+  `mlx4_ib`, and restored the expected RDMA naming: PF `rocep23s0`, host VFs
+  `mlx4_0` through `mlx4_10`.
+- Passing log:
+  `/root/CX3Pro-inbox-driver-patch/logs/validation/post-upgrade-20260628-034405.log`
+- Result: `port-validation post-upgrade: PASS`; preflight, exact Proxmox ref
+  apply-check, runtime verifier, RDMA link readiness, VF map, and RDMA-CM
+  traffic all passed.
+- VF0-VF10 RDMA-CM throughput: `49.28-50.57 Gbit/sec`; VF11 skipped because it
+  is assigned to `vfio-pci`.
+- Follow-up `port-update-check` on `7.0.12-1-pve` passed with zero warnings and
+  zero failures after the ref-map patch.
+
+Current health after upgrade:
+
+- `apt-get -s -f install` reports no required package repairs.
+- `systemctl --failed` reports no failed units.
+- No stale `ib_write_bw` or `ib_send_bw` processes were left running.
+- `nvmet-vm-lab status` completed. It showed pvs1 target modules loaded and no
+  pvs1 errors since `2026-06-28 00:00:00`. VM 100 currently exposes only its
+  normal `sda` disk; no NVMe/RDMA VM test disk is attached.
