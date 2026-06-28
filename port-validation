@@ -17,6 +17,7 @@ EXPECT_BOOT_ID_CHANGED_FROM="${EXPECT_BOOT_ID_CHANGED_FROM:-}"
 LOG_DIR="${LOG_DIR:-logs/validation}"
 WAIT_RDMACM_LINK_SECS="${WAIT_RDMACM_LINK_SECS:-120}"
 RDMACM_SETTLE_SECS="${RDMACM_SETTLE_SECS:-10}"
+WAIT_POSTBOOT_SECS="${WAIT_POSTBOOT_SECS:-180}"
 
 usage() {
 	cat <<EOF
@@ -44,6 +45,8 @@ Environment:
   RUN_NVMET_STATUS=1              Include nvmet-vm-lab status in update check.
   RUN_BUILD=1                     Include build-only check in update check.
   RUN_VERIFY=0                    Skip verify-pve7 through port-update-check.
+  WAIT_POSTBOOT_SECS=...          Wait for cx3pro-rdma-postboot.service.
+                                   Default: 180.
   WAIT_RDMACM_LINK_SECS=...       Wait for PF/VF RDMA links. Default: 120.
   RDMACM_SETTLE_SECS=...          Extra settle delay after links active. Default: 10.
 EOF
@@ -146,6 +149,43 @@ wait_for_rdmacm_links() {
 	return 1
 }
 
+wait_for_postboot_service() {
+	local unit="cx3pro-rdma-postboot.service"
+	local elapsed=0
+	local state
+
+	if ! systemctl list-unit-files "$unit" >/dev/null 2>&1; then
+		echo "${unit} is not installed; continuing" | tee -a "$LOG"
+		return 0
+	fi
+
+	while [ "$elapsed" -lt "$WAIT_POSTBOOT_SECS" ]; do
+		state="$(systemctl show -P ActiveState "$unit" 2>/dev/null || true)"
+		case "$state" in
+		inactive|failed)
+			systemctl status --no-pager "$unit" 2>&1 | tee -a "$LOG" || true
+			if [ "$state" = "failed" ]; then
+				echo "error: ${unit} failed" | tee -a "$LOG"
+				return 1
+			fi
+			return 0
+			;;
+		activating|active|deactivating|reloading)
+			sleep 1
+			elapsed=$((elapsed + 1))
+			;;
+		*)
+			echo "${unit} state=${state:-unknown}; continuing" | tee -a "$LOG"
+			return 0
+			;;
+		esac
+	done
+
+	echo "error: ${unit} did not finish within ${WAIT_POSTBOOT_SECS}s" | tee -a "$LOG"
+	systemctl status --no-pager "$unit" 2>&1 | tee -a "$LOG" || true
+	return 1
+}
+
 KVER="$(uname -r)"
 BOOT_ID="$(cat /proc/sys/kernel/random/boot_id)"
 BOOT_TIME="$(uptime -s)"
@@ -169,6 +209,9 @@ if [ -n "$EXPECT_BOOT_ID_CHANGED_FROM" ] && [ "$BOOT_ID" = "$EXPECT_BOOT_ID_CHAN
 	echo "error: boot ID did not change from ${EXPECT_BOOT_ID_CHANGED_FROM}" | tee -a "$LOG"
 	exit 1
 fi
+
+section "postboot service"
+wait_for_postboot_service
 
 if [ "$RUN_UPDATE_CHECK" = "1" ]; then
 	section "port update check"
