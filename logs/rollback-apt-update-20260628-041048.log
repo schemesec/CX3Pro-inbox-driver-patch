@@ -1,0 +1,6 @@
+Hit:1 http://deb.debian.org/debian trixie InRelease
+Get:2 http://deb.debian.org/debian trixie-updates InRelease [47.3 kB]
+Hit:3 http://security.debian.org/debian-security trixie-security InRelease
+Hit:4 http://download.proxmox.com/debian/pve trixie InRelease
+Fetched 47.3 kB in 0s (576 kB/s)
+Reading package lists...

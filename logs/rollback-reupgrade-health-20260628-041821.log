@@ -1,0 +1,37 @@
+created=2026-06-28T04:18:21-04:00
+kernel=7.0.12-1-pve
+boot_id=c38a67ac-bd99-4826-b178-3be31e3b587f
+boot_time=2026-06-28 04:15:48
+pve=pve-manager/9.2.3/d0fde103346cf89a (running kernel: 7.0.12-1-pve)
+
+== apt -s -f install ==
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages were automatically installed and are no longer required:
+  proxmox-kernel-6.14.11-5-pve-signed proxmox-kernel-6.14.11-8-pve-signed
+  proxmox-kernel-6.17.13-7-pve-signed proxmox-kernel-6.17.9-1-pve-signed
+  proxmox-kernel-7.0.2-2-pve-signed
+Use 'apt autoremove' to remove them.
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+
+== systemctl --failed ==
+  UNIT LOAD ACTIVE SUB DESCRIPTION
+
+0 loaded units listed.
+
+== stale perftest ==
+
+== module resolution ==
+/lib/modules/7.0.12-1-pve/updates/cx3pro-inbox-rocev2/mlx4_core.ko
+/lib/modules/7.0.12-1-pve/updates/cx3pro-inbox-rocev2/mlx4_en.ko
+/lib/modules/7.0.12-1-pve/updates/cx3pro-inbox-rocev2/mlx4_ib.ko
+
+== pve boot kernels ==
+Manually selected kernels:
+None.
+
+Automatically selected kernels:
+6.17.13-13-pve
+7.0.12-1-pve
+7.0.2-6-pve

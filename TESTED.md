@@ -367,3 +367,39 @@ Previously observed and fixed:
   with no pvs1 errors since `2026-06-28 00:00:00`; VM 100 currently shows only
   the normal `sda` disk, so no NVMe/RDMA VM disk is attached after this
   upgrade pass.
+
+## Rollback and re-upgrade validation, 2026-06-28
+
+- Rebooted the current `7.0.12-1-pve` upgraded state and found a validation
+  harness race: `port-validation` could start `verify-pve7.sh` while
+  `cx3pro-rdma-postboot.service` was still reloading/settling `mlx4_ib`.
+  `port-validation` now waits for that service before running
+  `port-update-check`.
+- After the harness fix, current-state post-reboot validation passed on boot
+  `7c43a443-a78c-41fc-bfdd-14fd555fbf5e`, kernel `7.0.12-1-pve`. Log:
+  `/root/CX3Pro-inbox-driver-patch/logs/validation/post-reboot-20260628-040514.log`.
+  VF0-VF10 RDMA-CM passed at `49.52-50.70 Gbit/sec`; VF11 was skipped on
+  `vfio-pci`.
+- Rolled back `rpool/ROOT/pve-1` to
+  `rpool/ROOT/pve-1@pre-inbox-dist-upgrade-20260628-024359`, booted
+  `7.0.2-6-pve`, pulled the current GitHub repo, and validated the old
+  baseline. Log:
+  `/root/CX3Pro-inbox-driver-patch/logs/validation/post-reboot-20260628-040849.log`.
+  VF0-VF10 RDMA-CM passed at `49.73-50.79 Gbit/sec`; VF11 was skipped on
+  `vfio-pci`.
+- Re-ran the Proxmox upgrade from the rolled-back root, explicitly installed
+  `proxmox-headers-7.0.12-1-pve`, rebuilt and installed the mlx4 override for
+  `7.0.12-1-pve`, removed the one-shot kernel pin, rebooted, and validated the
+  upgraded state. Log:
+  `/root/CX3Pro-inbox-driver-patch/logs/validation/post-upgrade-20260628-041618.log`.
+  VF0-VF10 RDMA-CM passed at `49.39-50.54 Gbit/sec`; VF11 was skipped on
+  `vfio-pci`.
+- Final health after rollback/re-upgrade: `apt-get -s -f install` required no
+  repairs, `systemctl --failed` showed no failed units, no stale
+  `ib_write_bw`/`ib_send_bw` processes were present, and `mlx4_core`,
+  `mlx4_en`, and `mlx4_ib` resolved from
+  `/lib/modules/7.0.12-1-pve/updates/cx3pro-inbox-rocev2`.
+- New validated rollback point:
+  `rpool@post-rollback-reupgrade-validated-20260628-041821`. Snapshot
+  inventory:
+  `/root/CX3Pro-inbox-driver-patch/logs/post-rollback-reupgrade-zfs-20260628-041821.txt`.

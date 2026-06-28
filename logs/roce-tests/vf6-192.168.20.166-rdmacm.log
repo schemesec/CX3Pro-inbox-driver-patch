@@ -20,11 +20,11 @@
  Waiting for client rdma_cm QP to connect
  Please run the same command with the IB/RoCE interface IP
 ---------------------------------------------------------------------------------------
- local address: LID 0000 QPN 0x0be4 PSN 0x524b6b
+ local address: LID 0000 QPN 0x0be4 PSN 0xcfc60c
  GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:166
- remote address: LID 0000 QPN 0x0495 PSN 0x792ffd
+ remote address: LID 0000 QPN 0x04c1 PSN 0x76765f
  GID: 00:00:00:00:00:00:00:00:00:00:255:255:192:168:20:50
 ---------------------------------------------------------------------------------------
  #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
- 65536      5000             49.57              49.52  		     0.094450
+ 65536      5000             50.55              50.54  		     0.096396
 ---------------------------------------------------------------------------------------

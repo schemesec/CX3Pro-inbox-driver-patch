@@ -1,0 +1,34 @@
+=== CX3 Pro inbox RoCEv2 VF patch installer ===
+repo=/root/CX3Pro-inbox-driver-patch
+kernel=7.0.2-6-pve
+pve_kernel_ref=87f22e55de30d73b83722b86790394564036b33c
+jobs=12
+build_root=/root/cx3pro-inbox-build
+install_dir=/lib/modules/7.0.2-6-pve/updates/cx3pro-inbox-rocev2
+tested_kernels=7.0.2-2-pve 7.0.2-6-pve 7.0.12-1-pve
+log=/root/CX3Pro-inbox-driver-patch/logs/install-20260628-040929.log
+
+using known validated pve-kernel ref for 7.0.2-6-pve
++ mkdir -p /root/cx3pro-inbox-build
++ git -C /root/cx3pro-inbox-build/pve-kernel fetch --depth 1 origin
++ git -C /root/cx3pro-inbox-build/pve-kernel reset --hard FETCH_HEAD
+HEAD is now at f5f9a7c make: fix deriving build-host architecture
++ git -C /root/cx3pro-inbox-build/pve-kernel fetch --depth 1 origin 87f22e55de30d73b83722b86790394564036b33c
+From https://github.com/proxmox/pve-kernel
+ * branch            87f22e55de30d73b83722b86790394564036b33c -> FETCH_HEAD
++ git -C /root/cx3pro-inbox-build/pve-kernel reset --hard FETCH_HEAD
+HEAD is now at 87f22e5 update ABI file for 7.0.2-6-pve (amd64)
++ git -C /root/cx3pro-inbox-build/pve-kernel submodule set-url submodules/ubuntu-kernel https://git.proxmox.com/git/mirror_ubuntu-kernels.git
+Synchronizing submodule url for 'submodules/ubuntu-kernel'
++ git -C /root/cx3pro-inbox-build/pve-kernel submodule set-url submodules/zfsonlinux https://git.proxmox.com/git/zfsonlinux.git
++ git -C /root/cx3pro-inbox-build/pve-kernel submodule update --init submodules/ubuntu-kernel
++ cp /root/CX3Pro-inbox-driver-patch/patches/kernel/0066-mlx4-preserve-rocev2-gid-type-for-sriov-vfs.patch /root/cx3pro-inbox-build/pve-kernel/patches/kernel/
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel reset --hard HEAD
+HEAD is now at 69bb061d6b71 UBUNTU: Ubuntu-7.0.0-18.18
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel clean -fdx
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel apply --check /root/CX3Pro-inbox-driver-patch/patches/kernel/0066-mlx4-preserve-rocev2-gid-type-for-sriov-vfs.patch
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel apply /root/CX3Pro-inbox-driver-patch/patches/kernel/0066-mlx4-preserve-rocev2-gid-type-for-sriov-vfs.patch
++ git -C /root/cx3pro-inbox-build/pve-kernel/submodules/ubuntu-kernel diff --check
+apply-check-only complete
+patch applied cleanly to source version 7.0.2
+log=/root/CX3Pro-inbox-driver-patch/logs/install-20260628-040929.log

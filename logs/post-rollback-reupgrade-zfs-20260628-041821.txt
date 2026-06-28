@@ -1,0 +1,14 @@
+snapshot=rpool@post-rollback-reupgrade-validated-20260628-041821
+created=2026-06-28T04:18:22-04:00
+kernel=7.0.12-1-pve
+boot_id=c38a67ac-bd99-4826-b178-3be31e3b587f
+
+rpool@post-rollback-reupgrade-validated-20260628-041821                     Sun Jun 28  4:18 2026     0B   104K
+rpool/ROOT@post-rollback-reupgrade-validated-20260628-041821                Sun Jun 28  4:18 2026     0B    96K
+rpool/ROOT/pve-1@post-rollback-reupgrade-validated-20260628-041821          Sun Jun 28  4:18 2026     0B  12.1G
+rpool/data@post-rollback-reupgrade-validated-20260628-041821                Sun Jun 28  4:18 2026     0B    96K
+rpool/data/vm-100-disk-0@post-rollback-reupgrade-validated-20260628-041821  Sun Jun 28  4:18 2026     0B    56K
+rpool/data/vm-100-disk-1@post-rollback-reupgrade-validated-20260628-041821  Sun Jun 28  4:18 2026     0B  1.48G
+rpool/data/vm-101-disk-0@post-rollback-reupgrade-validated-20260628-041821  Sun Jun 28  4:18 2026     0B    56K
+rpool/data/vm-101-disk-1@post-rollback-reupgrade-validated-20260628-041821  Sun Jun 28  4:18 2026     0B   584M
+rpool/var-lib-vz@post-rollback-reupgrade-validated-20260628-041821          Sun Jun 28  4:18 2026     0B   124M

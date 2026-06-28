@@ -47,12 +47,16 @@ The pvs3 repository commit tested during this handoff was:
 Current rollback points:
 
 - Pre-upgrade snapshot: `rpool@pre-inbox-dist-upgrade-20260628-024359`
-- Post-upgrade validated snapshot:
-  `rpool@post-inbox-dist-upgrade-validated-20260628-035411`
+- Current post-rollback/re-upgrade validated snapshot:
+  `rpool@post-rollback-reupgrade-validated-20260628-041821`
 
-The current working state is the post-upgrade snapshot and booted
+The current working state is the post-rollback/re-upgrade snapshot and booted
 `7.0.12-1-pve` kernel. Use the pre-upgrade snapshot only when intentionally
-testing rollback to the old `7.0.2-6-pve` baseline.
+testing rollback to the old `7.0.2-6-pve` baseline. The earlier
+`rpool@post-inbox-dist-upgrade-validated-20260628-035411` root snapshot was
+superseded for `rpool/ROOT/pve-1` by the rollback test; data/VM child snapshots
+from that point still exist, and the current full-system validated snapshot is
+`post-rollback-reupgrade-validated-20260628-041821`.
 
 ## Patch Behavior
 
@@ -598,3 +602,52 @@ Current health after upgrade:
   `rpool@post-inbox-dist-upgrade-validated-20260628-035411`.
 - Snapshot inventory log:
   `/root/CX3Pro-inbox-driver-patch/logs/post-dist-upgrade-zfs-20260628-035411.txt`.
+
+## Rollback and Re-upgrade Validation, 2026-06-28
+
+Requested lifecycle loop completed:
+
+1. Rebooted the current upgraded system.
+2. Fixed `port-validation` to wait for `cx3pro-rdma-postboot.service` before
+   running `port-update-check`; the first post-reboot validation had raced the
+   postboot `mlx4_ib` reload/settle window and produced transient missing VF
+   RoCEv2 GIDs.
+3. Re-ran `port-validation --stage post-reboot` on `7.0.12-1-pve`; it passed.
+4. Pinned next boot to `7.0.2-6-pve`, rolled back
+   `rpool/ROOT/pve-1@pre-inbox-dist-upgrade-20260628-024359`, rebooted, and
+   pulled the current GitHub repo back onto the rolled-back root.
+5. Validated the rolled-back `7.0.2-6-pve` baseline with
+   `port-validation --stage post-reboot`; it passed.
+6. Re-ran the Proxmox upgrade from the rolled-back root, installed
+   `proxmox-headers-7.0.12-1-pve`, rebuilt/installed the mlx4 override for
+   `7.0.12-1-pve`, removed the one-shot kernel pin, rebooted, and ran
+   `port-validation --stage post-upgrade`; it passed.
+
+Evidence:
+
+- Current-state reboot passing log:
+  `/root/CX3Pro-inbox-driver-patch/logs/validation/post-reboot-20260628-040514.log`
+- Rollback baseline passing log:
+  `/root/CX3Pro-inbox-driver-patch/logs/validation/post-reboot-20260628-040849.log`
+- Re-upgrade passing log:
+  `/root/CX3Pro-inbox-driver-patch/logs/validation/post-upgrade-20260628-041618.log`
+- Re-upgrade install log:
+  `/root/CX3Pro-inbox-driver-patch/logs/install-20260628-041409.log`
+- Re-upgrade health log:
+  `/root/CX3Pro-inbox-driver-patch/logs/rollback-reupgrade-health-20260628-041821.log`
+- Current validated snapshot:
+  `rpool@post-rollback-reupgrade-validated-20260628-041821`
+- Snapshot inventory log:
+  `/root/CX3Pro-inbox-driver-patch/logs/post-rollback-reupgrade-zfs-20260628-041821.txt`
+
+Final health after rollback/re-upgrade:
+
+- Kernel: `7.0.12-1-pve`
+- Proxmox: `pve-manager/9.2.3`
+- `apt-get -s -f install`: no repairs needed
+- `systemctl --failed`: no failed units
+- Stale `ib_write_bw` / `ib_send_bw`: none
+- `mlx4_core`, `mlx4_en`, and `mlx4_ib` resolve from
+  `/lib/modules/7.0.12-1-pve/updates/cx3pro-inbox-rocev2`
+- Boot kernels are unpinned; Proxmox boot tool auto-selects
+  `6.17.13-13-pve`, `7.0.12-1-pve`, and `7.0.2-6-pve`.
