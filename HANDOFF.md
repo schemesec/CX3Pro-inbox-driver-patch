@@ -16,17 +16,16 @@ kernel source mirror.
 
 - Local research tree: `/home/scheme/workspace/inbox-research`
 - Active pvs3 implementation: `/root/CX3Pro-inbox-driver-patch`
-- pvs3 current kernel: `7.0.2-6-pve`
-- Exact Proxmox packaging commit for pvs3: `87f22e55de30d73b83722b86790394564036b33c`
-- Proxmox-pinned kernel source commit: `69bb061d6b71ee9b43e6584cc16d2a8853e81fe6`
-- Proxmox-pinned ZFS commit for `7.0.2-6`: `069198f9d5ca7876a4af06da2c42f848f0d0552e`
+- pvs3 current validated kernel: `7.0.12-1-pve`
+- Exact Proxmox packaging commit for pvs3: `b8d87f8e97fa979f50d88673bd5be41de93ed2f3`
+- Proxmox-pinned kernel source commit: `d873103e8ac3c51fbdb4be178bddb191af0f6a21`
+- Proxmox-pinned ZFS commit for `7.0.12-1`: `069198f9d5ca7876a4af06da2c42f848f0d0552e`
 - Main feature patch: `patches/kernel/0066-mlx4-preserve-rocev2-gid-type-for-sriov-vfs.patch`
 
-The local tree has been advanced from the older `7.0.2-5` packaging state to
-the Proxmox `7.0.2-6` packaging delta used by pvs3. The custom patch queue
-applies through `0066` against the exact pinned Proxmox kernel source. A full
-local package build was not completed because the local workstation is missing
-Debian kernel build dependencies and does not have passwordless sudo.
+The pvs3 module-override tree is the source of truth for the deployable port.
+The local `/home/scheme/workspace/inbox-research` tree is still useful for
+research and packaging comparison, but it is not the current tested deployment
+state.
 
 ## Current Best Implementation
 
@@ -43,7 +42,17 @@ verify, and reversible without replacing the full RDMA stack.
 
 The pvs3 repository commit tested during this handoff was:
 
-`972079b add kernel upgrade preflight check`
+`f441dd5 Validate Proxmox 7.0.12 upgrade path`
+
+Current rollback points:
+
+- Pre-upgrade snapshot: `rpool@pre-inbox-dist-upgrade-20260628-024359`
+- Post-upgrade validated snapshot:
+  `rpool@post-inbox-dist-upgrade-validated-20260628-035411`
+
+The current working state is the post-upgrade snapshot and booted
+`7.0.12-1-pve` kernel. Use the pre-upgrade snapshot only when intentionally
+testing rollback to the old `7.0.2-6-pve` baseline.
 
 ## Patch Behavior
 
@@ -60,7 +69,7 @@ The mlx4 patch provides the missing ConnectX-3 Pro SR-IOV RoCEv2 behavior:
 
 ## Validation Completed on pvs3
 
-Preflight passed for the currently installed kernel:
+Preflight passed for the currently installed `7.0.12-1-pve` kernel:
 
 ```sh
 ./preflight-upgrade.sh
@@ -73,27 +82,32 @@ Stock `rdma_cm`, `nvme_rdma`, and `nvmet_rdma` remained inbox Proxmox modules.
 Apply-check succeeded when pinned to the exact pvs3 Proxmox packaging commit:
 
 ```sh
-PVE_KERNEL_REF=87f22e55de30d73b83722b86790394564036b33c \
+KVER=7.0.12-1-pve \
+PVE_KERNEL_REF=b8d87f8e97fa979f50d88673bd5be41de93ed2f3 \
   ./install-pve7.sh --apply-check-only --no-apt
 ```
 
-Do not omit `PVE_KERNEL_REF` for pvs3 `7.0.2-6-pve`. The script default tracks
-newer Proxmox state and was observed selecting `7.0.12`, which correctly failed
-against the current target.
+For known tested kernels, `install-pve7.sh` and `preflight-upgrade.sh` now map
+`7.0.2-2-pve`, `7.0.2-6-pve`, and `7.0.12-1-pve` to exact Proxmox packaging
+refs. For any new kernel, resolve the ref with `find-pve-kernel-ref` and pass
+`PVE_KERNEL_REF` explicitly until that kernel is validated and added to the
+known-ref map.
 
 Build-only succeeded with the same pin:
 
 ```sh
-PVE_KERNEL_REF=87f22e55de30d73b83722b86790394564036b33c \
+KVER=7.0.12-1-pve \
+PVE_KERNEL_REF=b8d87f8e97fa979f50d88673bd5be41de93ed2f3 \
   ./install-pve7.sh --build-only --no-apt
 ```
 
 Result:
 
 - Built `mlx4_core.ko`, `mlx4_en.ko`, and `mlx4_ib.ko`.
-- Module vermagic matched `7.0.2-6-pve`.
+- Module vermagic matched `7.0.12-1-pve`.
 - `mlx4_ib` symbol CRCs matched the patched `mlx4_core` exports.
-- Build log: `/root/CX3Pro-inbox-driver-patch/logs/install-20260627-020028.log`
+- Build/install log:
+  `/root/CX3Pro-inbox-driver-patch/logs/install-20260628-034053.log`
 
 Functional verifier command:
 
@@ -422,20 +436,30 @@ Expected local worktree changes after aligning with Proxmox `7.0.2-6`:
 1. Keep the pvs3 module-override repository as the active implementation.
 2. Treat stale perftest processes as a hard precondition failure before any PF
    or VF RDMA-CM validation.
-3. Proceed with the upgrade workflow:
+3. Use the current validated state as the baseline:
+   - kernel `7.0.12-1-pve`
+   - repo commit `f441dd5`
+   - post-upgrade snapshot
+     `rpool@post-inbox-dist-upgrade-validated-20260628-035411`
+4. For the next Proxmox kernel/update candidate, run the update-readiness
+   workflow before installing anything:
    - `./preflight-upgrade.sh`
    - resolve the exact new Proxmox packaging ref with `./find-pve-kernel-ref`
    - pinned `./install-pve7.sh --apply-check-only --no-apt`
    - pinned `./install-pve7.sh --build-only --no-apt`
-   - install or rebuild override modules only after those checks pass.
-4. After reboot, run:
+   - confirm matching `proxmox-headers-<kernel>` are installed or available
+5. Install or rebuild override modules only after source apply-check,
+   build-only, and header checks pass.
+6. After any ordinary reboot, run:
    `CLIENT_SSH=root@192.168.1.50 CLIENT_DEV=rocep23s0 NUM_VFS=12
    ./port-validation --stage post-reboot`.
-5. After the Proxmox upgrade, rebuild/install if the kernel changed, reboot,
+7. After the next Proxmox upgrade, rebuild/install if the kernel changed, reboot,
    then run:
    `CLIENT_SSH=root@192.168.1.50 CLIENT_DEV=rocep23s0 NUM_VFS=12
    ./port-validation --stage post-upgrade`.
-6. Keep `/home/scheme/workspace/mlx-research` as the OFED reference project,
+8. Re-test the NVMe/RDMA VM disk path only with an explicit write-volume plan.
+   Default NVMe/RDMA checks should stay read-only/status-only.
+9. Keep `/home/scheme/workspace/mlx-research` as the OFED reference project,
    not the preferred deployment path.
 
 ## OFED Comparison
@@ -570,3 +594,7 @@ Current health after upgrade:
 - `nvmet-vm-lab status` completed. It showed pvs1 target modules loaded and no
   pvs1 errors since `2026-06-28 00:00:00`. VM 100 currently exposes only its
   normal `sda` disk; no NVMe/RDMA VM test disk is attached.
+- A clean post-upgrade recursive snapshot was created after validation:
+  `rpool@post-inbox-dist-upgrade-validated-20260628-035411`.
+- Snapshot inventory log:
+  `/root/CX3Pro-inbox-driver-patch/logs/post-dist-upgrade-zfs-20260628-035411.txt`.

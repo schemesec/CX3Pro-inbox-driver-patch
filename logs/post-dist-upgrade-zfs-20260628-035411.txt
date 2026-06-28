@@ -1,0 +1,14 @@
+snapshot=rpool@post-inbox-dist-upgrade-validated-20260628-035411
+created=2026-06-28T03:54:11-04:00
+kernel=7.0.12-1-pve
+boot_id=d630fe38-0e9c-4ef4-a824-558e57d64127
+
+rpool@post-inbox-dist-upgrade-validated-20260628-035411                     Sun Jun 28  3:54 2026     0B   104K
+rpool/ROOT@post-inbox-dist-upgrade-validated-20260628-035411                Sun Jun 28  3:54 2026     0B    96K
+rpool/ROOT/pve-1@post-inbox-dist-upgrade-validated-20260628-035411          Sun Jun 28  3:54 2026     0B  12.1G
+rpool/data@post-inbox-dist-upgrade-validated-20260628-035411                Sun Jun 28  3:54 2026     0B    96K
+rpool/data/vm-100-disk-0@post-inbox-dist-upgrade-validated-20260628-035411  Sun Jun 28  3:54 2026     0B    56K
+rpool/data/vm-100-disk-1@post-inbox-dist-upgrade-validated-20260628-035411  Sun Jun 28  3:54 2026     0B  1.48G
+rpool/data/vm-101-disk-0@post-inbox-dist-upgrade-validated-20260628-035411  Sun Jun 28  3:54 2026     0B    56K
+rpool/data/vm-101-disk-1@post-inbox-dist-upgrade-validated-20260628-035411  Sun Jun 28  3:54 2026     0B   584M
+rpool/var-lib-vz@post-inbox-dist-upgrade-validated-20260628-035411          Sun Jun 28  3:54 2026     0B   124M

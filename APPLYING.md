@@ -53,6 +53,12 @@ only `mlx4_core.ko`, `mlx4_en.ko`, and `mlx4_ib.ko` for the current kernel, and
 installs them below `/lib/modules/<kernel>/updates/cx3pro-inbox-rocev2`.
 It does not install a replacement RDMA core or NVMe/RDMA stack.
 
+When preparing a kernel upgrade, confirm the matching
+`proxmox-headers-<kernel>` package is installed or available before the module
+build. The `7.0.12-1-pve` upgrade required installing
+`proxmox-headers-7.0.12-1-pve` explicitly; the full-upgrade simulation did not
+pull that package by itself.
+
 `mlx4_core` and `mlx4_ib` are the modules with source-level RoCEv2/SR-IOV
 changes. `mlx4_en` is still built and installed from the same patched source
 tree so the Ethernet, core, and IB parts of mlx4 are kept from one build and
@@ -66,14 +72,15 @@ running `depmod`. The dependency check must resolve `mlx4_core`, `mlx4_en`, and
 ## Current validation
 
 On `pvs3`, the installer and runtime tests have been validated against Proxmox
-kernels `7.0.2-2-pve` and `7.0.2-6-pve`. Other kernels are allowed by the
-installer as unvalidated targets and must pass the same checks before being
-added to `TESTED_KERNELS`.
+kernels `7.0.2-2-pve`, `7.0.2-6-pve`, and `7.0.12-1-pve`. Other kernels are
+allowed by the installer as unvalidated targets and must pass the same checks
+before being added to `TESTED_KERNELS`.
 
 Known Proxmox packaging refs:
 
 - `7.0.2-2-pve`: `59dd19a1c4f66f932d222eac91f9f1454f9b10cc`
 - `7.0.2-6-pve`: `87f22e55de30d73b83722b86790394564036b33c`
+- `7.0.12-1-pve`: `b8d87f8e97fa979f50d88673bd5be41de93ed2f3`
 
 The full mlx4 module build completed for:
 
@@ -92,6 +99,11 @@ host-owned VF RDMA devices exposed RoCEv2 GIDs, VF VLAN and stable MAC policy
 matched the requested configuration, and the bounded kernel warning scan found
 no `BUG`, `Oops`, `WARNING`, `Call Trace`, `Unknown symbol`, `disagrees`,
 `__warn`, or `vhcr command:0x3a` entries.
+
+The `7.0.12-1-pve` dist-upgrade path was validated from a clean pre-upgrade
+snapshot through post-upgrade reboot. `port-validation --stage post-upgrade`
+passed with VF0-VF10 RDMA-CM traffic at `49.28-50.57 Gbit/sec`; VF11 was
+skipped because it is bound to `vfio-pci`.
 
 This workflow has not been converted into a full Proxmox kernel package build.
 It is an out-of-tree module install flow for testing the inbox-driver patch.
