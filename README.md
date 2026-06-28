@@ -71,10 +71,11 @@ for intentionally testing an unlisted kernel.
 
 For kernels already listed in `TESTED_KERNELS`, `install-pve7.sh` auto-selects
 the validated Proxmox packaging ref from `lib/pve-kernel-refs.sh` when one is
-known. For a new Proxmox kernel, find the exact pve-kernel packaging commit for
-that kernel first and set `PVE_KERNEL_REF` explicitly before apply/build/install
-checks. This avoids accidentally building against a newer repository default
-branch than the host is actually running.
+known. For a new Proxmox kernel, `port-update-check` and `find-pve-kernel-ref`
+try to discover the exact pve-kernel packaging commit, but absence of a known
+ref is not fatal by default. Set `PVE_KERNEL_REF` when you want to pin the
+source checkout exactly, and use `EXPECT_PVE_KERNEL_REF` only when reproducing
+a known baseline.
 
 Example discovery step for a new kernel:
 
@@ -91,9 +92,9 @@ RUN_BUILD=0 ./port-update-check
 Use `RUN_BUILD=1` when you also want to prove the modules still rebuild for
 the current kernel. The wrapper still does not install modules or reboot.
 
-The lifecycle validation gates are stricter than `port-update-check`. A kernel
-or package update is not considered validated until the matching gate passes
-with cross-host VF RDMA-CM traffic:
+The lifecycle validation gates are more complete than `port-update-check`. A
+kernel or package update is not considered validated until the matching gate
+passes with cross-host VF RDMA-CM traffic:
 
 ```sh
 # After rebooting into the patched module override.

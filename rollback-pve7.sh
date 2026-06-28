@@ -2,6 +2,7 @@
 set -euo pipefail
 
 TESTED_KERNELS="${TESTED_KERNELS:-}"
+STRICT_KERNEL="${STRICT_KERNEL:-0}"
 KVER="${KVER:-$(uname -r)}"
 INSTALL_DIR="${INSTALL_DIR:-/lib/modules/${KVER}/updates/cx3pro-inbox-rocev2}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,6 +26,7 @@ Environment:
   KVER=...           Kernel release. Default: uname -r.
   INSTALL_DIR=...    Installed module directory. Default:
                      /lib/modules/$KVER/updates/cx3pro-inbox-rocev2
+  STRICT_KERNEL=1    Refuse kernels not listed in TESTED_KERNELS. Default: warn.
 EOF
 }
 
@@ -34,8 +36,11 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
 fi
 
 if ! pve_kernel_is_tested "$KVER" "$TESTED_KERNELS"; then
-	echo "error: this rollback script is validated for: $TESTED_KERNELS; current target is $KVER" >&2
-	exit 1
+	if [ "$STRICT_KERNEL" = "1" ]; then
+		echo "error: this rollback script is validated for: $TESTED_KERNELS; current target is $KVER" >&2
+		exit 1
+	fi
+	echo "warning: this rollback script has not been validated for ${KVER}; known validated kernels: ${TESTED_KERNELS}" >&2
 fi
 
 if [ "$(id -u)" -ne 0 ]; then

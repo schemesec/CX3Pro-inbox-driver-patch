@@ -11,6 +11,7 @@ JOURNAL_SINCE="${JOURNAL_SINCE:-$(date '+%F 00:00:00')}"
 RUN_BUILD="${RUN_BUILD:-1}"
 RUN_VERIFY="${RUN_VERIFY:-1}"
 RUN_NVMET_STATUS="${RUN_NVMET_STATUS:-1}"
+PVE_KERNEL_REF="${PVE_KERNEL_REF:-}"
 EXPECT_PVE_KERNEL_REF="${EXPECT_PVE_KERNEL_REF:-}"
 STRICT_PREFLIGHT="${STRICT_PREFLIGHT:-0}"
 
@@ -35,6 +36,7 @@ Environment:
   RUN_BUILD=${RUN_BUILD}
   RUN_VERIFY=${RUN_VERIFY}
   RUN_NVMET_STATUS=${RUN_NVMET_STATUS}
+  PVE_KERNEL_REF=${PVE_KERNEL_REF}
   EXPECT_PVE_KERNEL_REF=${EXPECT_PVE_KERNEL_REF}
   STRICT_PREFLIGHT=${STRICT_PREFLIGHT}
   PF=${PF}
@@ -74,12 +76,16 @@ else
 fi
 
 section "resolve pve-kernel ref"
-ref_output="$(KVER="$KVER" ./find-pve-kernel-ref "$KVER")"
-printf '%s\n' "$ref_output"
-PVE_KERNEL_REF="$(printf '%s\n' "$ref_output" | awk -F= '$1 == "pve_kernel_ref" { print $2; exit }')"
 if [ -z "$PVE_KERNEL_REF" ]; then
-	echo "error: find-pve-kernel-ref did not return pve_kernel_ref" >&2
-	exit 1
+	if ref_output="$(KVER="$KVER" ./find-pve-kernel-ref "$KVER")"; then
+		printf '%s\n' "$ref_output"
+		PVE_KERNEL_REF="$(printf '%s\n' "$ref_output" | awk -F= '$1 == "pve_kernel_ref" { print $2; exit }')"
+	else
+		printf 'WARN: find-pve-kernel-ref did not resolve %s; using installer default source selection\n' "$KVER" >&2
+	fi
+fi
+if [ -z "$PVE_KERNEL_REF" ]; then
+	printf 'WARN: no PVE_KERNEL_REF pinned for %s; install-pve7.sh will use its default source selection and version check\n' "$KVER" >&2
 fi
 if [ -n "$EXPECT_PVE_KERNEL_REF" ] && [ "$PVE_KERNEL_REF" != "$EXPECT_PVE_KERNEL_REF" ]; then
 	echo "error: expected pve-kernel ref ${EXPECT_PVE_KERNEL_REF}, got ${PVE_KERNEL_REF}" >&2

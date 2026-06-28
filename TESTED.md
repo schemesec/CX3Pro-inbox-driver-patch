@@ -16,7 +16,7 @@ homelab CX3 Pro setup. It is not a production driver source.
 - Current validated rollback point:
   `rpool@post-rollback-reupgrade-validated-20260628-041821`
 
-Current strict non-installing update readiness passed:
+Current pinned non-installing update readiness passed:
 
 ```sh
 STRICT_PREFLIGHT=1 \
@@ -437,8 +437,9 @@ Previously observed and fixed:
 - Fixed `check-mlx4-rocev2-source` to handle Proxmox submodule `.git` files and
   to discover the kernel source under a parent Proxmox packaging checkout.
 - Added `upgrade-lifecycle` as a guarded/dry-run lifecycle command logger.
-- Added `EXPECT_PVE_KERNEL_REF` and `STRICT_PREFLIGHT` to the update check path.
-- Latest strict non-installing update check passed with zero failures:
+- Added optional `EXPECT_PVE_KERNEL_REF` and `STRICT_PREFLIGHT` reproduction
+  gates to the update check path.
+- Latest pinned non-installing update check passed with zero failures:
 
   ```sh
   STRICT_PREFLIGHT=1 \

@@ -26,10 +26,11 @@ for the running kernel:
 ```
 
 For tested kernels with a known mapping, `install-pve7.sh` auto-selects the
-validated Proxmox packaging ref. For any unlisted kernel, use the ref printed
-by `find-pve-kernel-ref` and set `PVE_KERNEL_REF` explicitly. Do not rely on
-the current repository default branch for a host that is running an older
-kernel.
+validated Proxmox packaging ref. For any unlisted kernel, first try
+`find-pve-kernel-ref` and set `PVE_KERNEL_REF` when it can identify the exact
+packaging commit. If no mapping is found, the installer may still probe the
+kernel as an unvalidated target; source version, patch apply, build, boot, and
+runtime validation decide whether that kernel works.
 
 A clean apply check means the source-level patch applied and passed
 `git diff --check`; it does not prove the modules build, boot, or pass RDMA

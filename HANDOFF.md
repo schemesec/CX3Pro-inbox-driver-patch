@@ -448,12 +448,12 @@ Expected local worktree changes after aligning with Proxmox `7.0.2-6`:
      `rpool@post-inbox-dist-upgrade-validated-20260628-035411`
 4. For the next Proxmox kernel/update candidate, run the update-readiness
    workflow before installing anything:
-   - `STRICT_PREFLIGHT=1 ./preflight-upgrade.sh --strict`
-   - resolve or assert the exact new Proxmox packaging ref with
-     `./find-pve-kernel-ref` and `EXPECT_PVE_KERNEL_REF`
-   - pinned `./install-pve7.sh --apply-check-only --no-apt`
+   - `./preflight-upgrade.sh`
+   - try to resolve the exact new Proxmox packaging ref with
+     `./find-pve-kernel-ref`; pin `PVE_KERNEL_REF` when it is known
+   - `./install-pve7.sh --apply-check-only --no-apt`
    - semantic source check through `check-mlx4-rocev2-source`
-   - pinned `./install-pve7.sh --build-only --no-apt`
+   - `./install-pve7.sh --build-only --no-apt`
    - confirm matching `proxmox-headers-<kernel>` are installed or available
 5. Install or rebuild override modules only after source apply-check,
    build-only, and header checks pass.
@@ -670,11 +670,13 @@ kernel bumps are easier to repeat and less dependent on script-local state:
 - `check-mlx4-rocev2-source` accepts either the kernel source tree or a parent
   Proxmox packaging checkout, handles submodule `.git` files, and verifies the
   key mlx4 RoCEv2/SR-IOV GID type plumbing after patch application.
-- `port-update-check` supports `EXPECT_PVE_KERNEL_REF` and `STRICT_PREFLIGHT`.
+- `port-update-check` supports optional `EXPECT_PVE_KERNEL_REF` and
+  `STRICT_PREFLIGHT` reproduction gates, but they are not required for normal
+  new-kernel probing.
 - `upgrade-lifecycle` logs and prints guarded reboot, rollback, and re-upgrade
   command blocks. Dangerous actions remain dry-run unless explicitly enabled.
 
-Strict non-installing update readiness passed on `7.0.12-1-pve` after those
+Pinned non-installing update readiness passed on `7.0.12-1-pve` after those
 changes:
 
 ```sh
