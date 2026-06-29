@@ -450,3 +450,17 @@ Previously observed and fixed:
 - Known residual notes: DKMS may skip side kernels when matching headers are not
   installed; `/usr/sbin/grub-probe: error: unknown filesystem` has appeared
   during grub generation but did not block successful boots.
+
+## Return-to-stock dry-run, 2026-06-29
+
+- Added `restore-stock-proxmox` as the explicit return-to-stock path.
+- Dry-run on pvs3 showed it would disable/move:
+  `cx3pro-rdma-postboot.service`, `cx3pro-sriov-vfs.service`,
+  `/usr/local/sbin/cx3pro-apply-vf-vlans.sh`,
+  `/usr/local/sbin/cx3pro-rdma-postboot.sh`,
+  `/etc/modprobe.d/cx3pro-inbox-rocev2.conf`, the
+  `cx3pro-inbox-rocev2` initramfs block, and
+  `/lib/modules/7.0.12-1-pve/updates/cx3pro-inbox-rocev2`.
+- It would then run `depmod 7.0.12-1-pve`, `update-initramfs -u -k
+  7.0.12-1-pve`, and `systemctl daemon-reload`.
+- The restore was not applied; the host remains on the patched inbox override.

@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+KVER="${KVER:-$(uname -r)}"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_DIR="${INSTALL_DIR:-/lib/modules/${KVER}/updates/cx3pro-inbox-rocev2}"
+BACKUP_ROOT="${BACKUP_ROOT:-${REPO_ROOT}/stock-restore-backups}"
+TS="${TS:-$(date +%Y%m%d-%H%M%S)}"
+BACKUP_DIR="${BACKUP_DIR:-${BACKUP_ROOT}/${KVER}/restore-${TS}}"
+APPLY=0
+ALL_KERNELS=0
+REMOVE_VFIO_LOAD=0
+
+usage() {
+	cat <<EOF
+Usage: $0 [--apply] [--all-kernels] [--remove-vfio-load]
+
+Return a host toward stock Proxmox mlx4 behavior by disabling/removing the
+project-owned CX3 Pro inbox override state. Dry-run is the default.
+
+By default this targets only KVER=${KVER}. Use --all-kernels to move every
+/lib/modules/*/updates/cx3pro-inbox-rocev2 directory found on the host.
+
+Actions with --apply:
+  - disable cx3pro-sriov-vfs.service and cx3pro-rdma-postboot.service
+  - move their unit files and helper scripts into BACKUP_DIR
+  - move /etc/modprobe.d/cx3pro-inbox-rocev2.conf into BACKUP_DIR
+  - remove the cx3pro-inbox-rocev2 block from /etc/initramfs-tools/modules
+  - move cx3pro inbox module override directories into BACKUP_DIR
+  - run depmod and update-initramfs for affected kernels
+
+This does not revert Mellanox firmware SR-IOV settings and does not remove
+Proxmox packages. VFIO module autoload is kept unless --remove-vfio-load is set.
+
+Environment:
+  KVER=...          Kernel release to target. Default: uname -r.
+  INSTALL_DIR=...   Override directory for KVER.
+  BACKUP_DIR=...    Restore backup destination.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+	--apply) APPLY=1 ;;
+	--all-kernels) ALL_KERNELS=1 ;;
+	--remove-vfio-load) REMOVE_VFIO_LOAD=1 ;;
+	-h|--help) usage; exit 0 ;;
+	*) echo "error: unknown option: $1" >&2; usage >&2; exit 2 ;;
+	esac
+	shift
+done
+
+log() {
+	printf '%s\n' "$*"
+}
+
+run() {
+	if [ "$APPLY" -eq 1 ]; then
+		log "+ $*"
+		"$@"
+	else
+		log "DRY-RUN: $*"
+	fi
+}
+
+backup_path() {
+	local path="$1"
+	local rel dst
+
+	[ -e "$path" ] || return 0
+	rel="${path#/}"
+	dst="${BACKUP_DIR}/${rel}"
+	run mkdir -p "$(dirname "$dst")"
+	run mv "$path" "$dst"
+}
+
+remove_initramfs_block() {
+	local modules_file="/etc/initramfs-tools/modules"
+	local begin="# cx3pro-inbox-rocev2 begin"
+	local end="# cx3pro-inbox-rocev2 end"
+	local backup="${BACKUP_DIR}/etc/initramfs-tools/modules.before-restore"
+
+	[ -f "$modules_file" ] || return 0
+	if ! grep -q "^${begin}$" "$modules_file"; then
+		return 0
+	fi
+
+	run mkdir -p "$(dirname "$backup")"
+	if [ "$APPLY" -eq 1 ]; then
+		cp -a "$modules_file" "$backup"
+		sed -i "/^${begin}$/,/^${end}$/d" "$modules_file"
+	else
+		log "DRY-RUN: cp -a ${modules_file} ${backup}"
+		log "DRY-RUN: sed -i '/^${begin}$/,/^${end}$/d' ${modules_file}"
+	fi
+}
+
+target_kernels() {
+	if [ "$ALL_KERNELS" -eq 1 ]; then
+		find /lib/modules -mindepth 3 -maxdepth 3 -type d \
+			-path '*/updates/cx3pro-inbox-rocev2' -print 2>/dev/null |
+			sed -E 's#^/lib/modules/([^/]+)/updates/cx3pro-inbox-rocev2$#\1#' |
+			sort -u
+	else
+		printf '%s\n' "$KVER"
+	fi
+}
+
+override_dir_for() {
+	local kver="$1"
+
+	if [ "$kver" = "$KVER" ]; then
+		printf '%s\n' "$INSTALL_DIR"
+	else
+		printf '/lib/modules/%s/updates/cx3pro-inbox-rocev2\n' "$kver"
+	fi
+}
+
+need_root_for_apply() {
+	if [ "$APPLY" -eq 1 ] && [ "$(id -u)" -ne 0 ]; then
+		echo "error: --apply requires root" >&2
+		exit 1
+	fi
+}
+
+need_root_for_apply
+
+log "=== CX3 Pro return-to-stock plan ==="
+log "host=$(hostname)"
+log "kernel=${KVER}"
+log "apply=${APPLY}"
+log "all_kernels=${ALL_KERNELS}"
+log "backup_dir=${BACKUP_DIR}"
+log
+
+if [ "$APPLY" -eq 0 ]; then
+	log "dry-run only; rerun with --apply to make changes"
+	log
+fi
+
+log "=== disable project services ==="
+for unit in cx3pro-rdma-postboot.service cx3pro-sriov-vfs.service; do
+	if systemctl list-unit-files "$unit" >/dev/null 2>&1; then
+		run systemctl disable --now "$unit"
+	fi
+	backup_path "/etc/systemd/system/${unit}"
+done
+
+log
+log "=== move project helper scripts/config ==="
+backup_path /usr/local/sbin/cx3pro-apply-vf-vlans.sh
+backup_path /usr/local/sbin/cx3pro-rdma-postboot.sh
+backup_path /etc/modprobe.d/cx3pro-inbox-rocev2.conf
+if [ "$REMOVE_VFIO_LOAD" -eq 1 ]; then
+	backup_path /etc/modules-load.d/vfio.conf
+else
+	log "keeping /etc/modules-load.d/vfio.conf; use --remove-vfio-load to move it"
+fi
+
+log
+log "=== remove initramfs module block ==="
+remove_initramfs_block
+
+log
+log "=== move module override directories ==="
+mapfile -t kernels < <(target_kernels)
+affected_kernels=()
+for kernel in "${kernels[@]}"; do
+	dir="$(override_dir_for "$kernel")"
+	if [ -d "$dir" ]; then
+		backup_path "$dir"
+		affected_kernels+=("$kernel")
+	else
+		log "no override directory for ${kernel}: ${dir}"
+	fi
+done
+
+log
+log "=== refresh module metadata ==="
+for kernel in "${affected_kernels[@]:-$KVER}"; do
+	if [ -d "/lib/modules/${kernel}" ]; then
+		run depmod "$kernel"
+		run update-initramfs -u -k "$kernel"
+	fi
+done
+run systemctl daemon-reload
+
+log
+log "=== stock resolution check ==="
+for module in mlx4_core mlx4_en mlx4_ib; do
+	if [ "$APPLY" -eq 1 ]; then
+		modinfo -k "$KVER" -n "$module" || true
+	else
+		log "DRY-RUN: modinfo -k ${KVER} -n ${module}"
+	fi
+done
+
+log
+log "restore plan complete"
+if [ "$APPLY" -eq 1 ]; then
+	log "backup_dir=${BACKUP_DIR}"
+	log "reboot before treating the host as returned to stock behavior"
+fi

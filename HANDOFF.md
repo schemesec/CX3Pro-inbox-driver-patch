@@ -675,6 +675,10 @@ kernel bumps are easier to repeat and less dependent on script-local state:
   new-kernel probing.
 - `upgrade-lifecycle` logs and prints guarded reboot, rollback, and re-upgrade
   command blocks. Dangerous actions remain dry-run unless explicitly enabled.
+- `restore-stock-proxmox` provides an explicit dry-run/apply path to move the
+  project-owned mlx4 override modules, modprobe config, initramfs block, helper
+  scripts, and CX3 Pro services into `stock-restore-backups/`, then refresh
+  module metadata and initramfs.
 
 Pinned non-installing update readiness passed on `7.0.12-1-pve` after those
 changes:

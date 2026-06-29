@@ -159,6 +159,36 @@ The repo includes the same style of host-side helper scripts used in
   It defaults to status/setup operations and refuses guest writes unless
   `ALLOW_WRITE=1` is explicitly set.
 - `rollback-pve7.sh` restores a previously backed-up inbox module directory and updates initramfs.
+- `restore-stock-proxmox` dry-runs or applies a return-to-stock cleanup for the
+  project-owned override modules, modprobe config, initramfs block, and CX3 Pro
+  systemd services.
+
+## Return to stock Proxmox
+
+A distro or kernel upgrade may boot a kernel that does not have the
+`cx3pro-inbox-rocev2` override installed, but that is only a partial return to
+stock. It does not remove this project's modprobe options, initramfs module
+block, SR-IOV services, helper scripts, or old override directories.
+
+Use the explicit restore path instead:
+
+```sh
+# Review only; no changes.
+./restore-stock-proxmox
+
+# Apply for the running kernel.
+./restore-stock-proxmox --apply
+
+# Apply for every kernel with a cx3pro override directory.
+./restore-stock-proxmox --apply --all-kernels
+```
+
+The script moves project-owned files into `stock-restore-backups/` instead of
+deleting them, runs `depmod`, refreshes initramfs for affected kernels, and
+prints the resulting stock `mlx4_*` module resolution. It intentionally does
+not revert Mellanox firmware SR-IOV settings and keeps generic VFIO autoload
+unless `--remove-vfio-load` is set. Reboot after applying it before treating the
+host as returned to stock behavior.
 
 Example pvs3 flow after the first reboot:
 
